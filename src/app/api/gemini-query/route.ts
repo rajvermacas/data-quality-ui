@@ -120,6 +120,34 @@ IMPORTANT: Generate one complete JSON object. Start with "{" and end with "}". N
 }
 
 /**
+ * Extracts computation data from embedded JSON in text response
+ */
+function extractComputationFromEmbeddedJSON(text: string): { computationCode: string; computationResult: string } {
+  let computationCode = '';
+  let computationResult = '';
+  
+  try {
+    // Look for JSON blocks in the text (may be wrapped in ```json```)
+    const jsonMatch = text.match(/```json\s*\n(.*?)\n```/s) || text.match(/(\{.*\})/s);
+    
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[1];
+      const parsed = JSON.parse(jsonStr);
+      
+      if (parsed.computation) {
+        computationCode = parsed.computation.code || '';
+        computationResult = parsed.computation.result || '';
+        console.log('Extracted computation from embedded JSON:', { computationCode, computationResult });
+      }
+    }
+  } catch (parseError) {
+    console.log('Failed to extract computation from embedded JSON:', parseError);
+  }
+  
+  return { computationCode, computationResult };
+}
+
+/**
  * Makes API call to Gemini with code execution capabilities
  * Returns the raw response text and computation details
  */
@@ -181,14 +209,22 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
       if (part.text) {
         responseText += part.text;
       }
+      // Check for computation data in separate parts (legacy format)
       if (part.executableCode) {
         computationCode = part.executableCode.code;
-        console.log('Generated code:', computationCode);
+        console.log('Generated code from separate part:', computationCode);
       }
       if (part.codeExecutionResult) {
         computationResult = part.codeExecutionResult.output;
-        console.log('Code execution result:', computationResult);
+        console.log('Code execution result from separate part:', computationResult);
       }
+    }
+    
+    // If computation data wasn't found in separate parts, try to extract from embedded JSON
+    if (!computationCode && !computationResult && responseText) {
+      const extracted = extractComputationFromEmbeddedJSON(responseText);
+      computationCode = extracted.computationCode;
+      computationResult = extracted.computationResult;
     }
     
     // Return raw response without parsing
@@ -411,8 +447,8 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
  */
 async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResponse> {
   console.log('Starting two-step Gemini API call for query:', query);
-  console.log('Prompt sent to Gemini:', prompt);
-  console.log('Original user query:', query);
+  // console.log('Prompt sent to Gemini:', prompt);
+  // console.log('Original user query:', query);
   
   let rawResponseText = '';
   let computationCode = '';
@@ -443,6 +479,7 @@ async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResp
     // Step 2: Always pass the output to structured output for cleaning/formatting
     console.log('Step 2: Using structured output to format the response');
     
+    // TODO: rawResponseText already contains computationCode, computationResult. We can free up context by removing explicit inclusion of computationCode and computationResult
     // Create a prompt for structured output that includes the code execution results
     const structuredPrompt = `Format this data analysis result into a proper chart response.
 
