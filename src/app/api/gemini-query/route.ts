@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AIQueryRequest, AIChartResponse, APIErrorResponse } from '@/types';
+import { AIQueryRequest, AIChartResponse, APIErrorResponse, DataQualityRecord } from '@/types';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
 
+interface GeminiResponsePart {
+  text?: string;
+  executableCode?: {
+    language: string;
+    code: string;
+  };
+  codeExecutionResult?: {
+    outcome: string;
+    output: string;
+  };
+}
+
 interface GeminiResponse {
   candidates: Array<{
     content: {
-      parts: Array<{
-        text: string;
-      }>;
+      parts: Array<GeminiResponsePart>;
     };
   }>;
 }
@@ -43,19 +53,45 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
 }
 
 /**
+ * Determines if a query requires computational analysis
+ */
+function isComputationalQuery(query: string): boolean {
+  const computationalKeywords = [
+    'calculate', 'compute', 'analyze', 'analysis', 'correlation', 'correlate', 
+    'average', 'mean', 'median', 'variance', 'standard deviation', 'statistics',
+    'sum', 'count', 'aggregate', 'group by', 'find patterns', 'detect',
+    'predict', 'forecast', 'trend analysis', 'regression', 'distribution',
+    'percentile', 'quartile', 'outlier', 'anomaly', 'statistical',
+    'compare values', 'rank', 'sort by', 'highest', 'lowest', 'maximum', 'minimum'
+  ];
+  
+  const queryLower = query.toLowerCase();
+  return computationalKeywords.some(keyword => queryLower.includes(keyword));
+}
+
+/**
  * Creates the prompt for Gemini API with structured output requirements
  */
 function createGeminiPrompt(query: string, dataContext?: any[]): string {
   console.log('Data context received:', dataContext ? `${dataContext.length} records` : 'No data');
-  const contextData = dataContext ? JSON.stringify(dataContext) : '[]';
   
-  return `You are a data visualization expert analyzing data quality metrics. Based on the user query and data context, generate a JSON response for creating a chart.
+  // Limit data context to prevent response truncation
+  const limitedContext = dataContext ? dataContext.slice(0, 20) : [];
+  const contextData = JSON.stringify(limitedContext);
+  
+  return `You are a data visualization expert. Analyze the user query and data to create a chart response.
 
 User Query: "${query}"
+Data Context (${limitedContext.length} sample records): ${contextData}
 
-Data Context (sample records): ${contextData}
+CRITICAL INSTRUCTIONS:
+1. **Generate ONLY a single, complete JSON object**
+2. **No markdown, no code blocks, no extra text**
+3. **Ensure JSON is properly closed with all brackets/braces**
+4. **Use Python code execution ONLY for calculations when needed**
+5. **Keep data array small (max 10 items)**
 
-CRITICAL: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanations. Just the raw JSON object following this exact structure:
+Required JSON format (must be complete and valid):
 
 {
   "chartType": "line|bar|pie|scatter|area|heatmap",
@@ -68,34 +104,36 @@ CRITICAL: Return ONLY valid JSON. No markdown formatting, no code blocks, no exp
   "filters": [
     {
       "field": "field_name",
-      "label": "Display Label",
+      "label": "Display Label", 
       "values": ["filter_values"]
     }
   ],
-  "insights": "Brief insights about the data shown"
+  "insights": "Brief insights about the data shown",
+  "computation": {
+    "code": "python code if executed",
+    "result": "computation result if performed"
+  }
 }
 
-Chart Type Selection Guidelines:
-- Use "line" for trends over time
-- Use "bar" for comparisons and categorical data
-- Use "pie" for proportions and distributions
-- Use "scatter" for correlations
-- Use "area" for cumulative data
-- Use "heatmap" for multi-dimensional analysis
+Chart Types:
+- "bar": comparisons, high/low values
+- "line": trends over time
+- "pie": proportions/percentages
+- "scatter": correlations
 
-Data Fields Available:
+Key Data Fields:
 - dataset_name, source, tenant_id, rule_type, dimension
-- fail_rate_1m, fail_rate_3m, fail_rate_12m, fail_rate_total
+- fail_rate_1m, fail_rate_3m, fail_rate_12m
 - trend_flag (up/down/equal)
-- business_date_latest
 
-Generate appropriate data based on the query context and ensure the response is valid JSON.`;
+IMPORTANT: Generate one complete JSON object. Start with "{" and end with "}". No additional text.`;
 }
 
 /**
- * Makes API call to Gemini with retry logic
+ * Makes API call to Gemini with code execution capabilities
+ * Returns the raw response text and computation details
  */
-async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartResponse> {
+async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): Promise<{ rawResponseText: string; computationCode: string; computationResult: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
@@ -113,6 +151,9 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
           parts: [{
             text: prompt
           }]
+        }],
+        tools: [{
+          codeExecution: {}
         }],
         generationConfig: {
           temperature: 0.1,
@@ -136,37 +177,211 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
       throw new Error('No response candidates from Gemini API');
     }
 
-    const responseText = data.candidates[0].content.parts[0].text;
+    const parts = data.candidates[0].content.parts;
+    
+    // Process all response parts
+    let responseText = '';
+    let computationCode = '';
+    let computationResult = '';
+    
+    // Ensure parts is an array (sometimes API returns a single object)
+    const partsArray = Array.isArray(parts) ? parts : [parts];
+    
+    for (const part of partsArray) {
+      if (part.text) {
+        responseText += part.text;
+      }
+      if (part.executableCode) {
+        computationCode = part.executableCode.code;
+        console.log('Generated code:', computationCode);
+      }
+      if (part.codeExecutionResult) {
+        computationResult = part.codeExecutionResult.output;
+        console.log('Code execution result:', computationResult);
+      }
+    }
+    
+    // Return raw response without parsing
+    return {
+      rawResponseText: responseText,
+      computationCode,
+      computationResult
+    };
+    
+  } catch (error) {
+    console.error(`Gemini API call failed (attempt ${retryCount + 1}):`, error);
+    
+    if (retryCount < MAX_RETRIES) {
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
+      return callGeminiAPIWithCodeExecution(prompt, retryCount + 1);
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Makes API call to Gemini with structured output (guaranteed JSON)
+ */
+async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0): Promise<AIChartResponse> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  try {
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              chartType: {
+                type: "string",
+                enum: ["line", "bar", "pie", "scatter", "area", "heatmap"]
+              },
+              title: {
+                type: "string"
+              },
+              data: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    dataset_name: { type: "string" },
+                    source: { type: "string" },
+                    tenant_id: { type: "string" },
+                    rule_type: { type: "string" },
+                    dimension: { type: "string" },
+                    fail_rate_1m: { type: "number" },
+                    fail_rate_3m: { type: "number" },
+                    fail_rate_12m: { type: "number" },
+                    trend_flag: { type: "string", enum: ["up", "down", "equal"] }
+                  }
+                }
+              },
+              config: {
+                type: "object",
+                properties: {
+                  xAxis: { type: "string" },
+                  yAxis: { 
+                    type: "array",
+                    items: {
+                      type: "string"
+                    }
+                  }
+                },
+                required: ["xAxis", "yAxis"]
+              },
+              filters: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    field: { type: "string" },
+                    label: { type: "string" },
+                    values: { 
+                      type: "array",
+                      items: { type: "string" }
+                    }
+                  },
+                  required: ["field", "label", "values"]
+                }
+              },
+              insights: {
+                type: "string"
+              }
+            },
+            required: ["chartType", "title", "data", "config"]
+          },
+          thinkingConfig: {
+            thinkingBudget: 0  // Disable thinking for faster responses in MVP
+          }
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GeminiResponse = await response.json();
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error('No response candidates from Gemini API');
+    }
+
+    // For structured output, response should be clean JSON
+    const parts = data.candidates[0].content.parts;
+    
+    // Ensure parts is an array (sometimes API returns a single object)
+    const partsArray = Array.isArray(parts) ? parts : [parts];
+    const responseText = partsArray[0]?.text;
+
+    console.log('Gemini structured output responseText:', responseText);
+    
+    if (!responseText) {
+      throw new Error('No text response from Gemini API');
+    }
     
     try {
-      // Extract JSON from markdown if needed (Gemini 2.5 often wraps JSON in markdown)
-      let jsonText = responseText.trim();
-      
-      // Remove markdown code block formatting if present
-      if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
-      }
-      
-      // Try to find JSON object if wrapped in other text
-      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonText = jsonMatch[0];
-      }
-      
-      const chartResponse: AIChartResponse = JSON.parse(jsonText);
+      const chartResponse: AIChartResponse = JSON.parse(responseText);
       
       // Validate required fields
       if (!chartResponse.chartType || !chartResponse.title || !chartResponse.config) {
-        throw new Error('Invalid response structure from Gemini API');
+        throw new Error('Invalid response structure from Gemini API - missing required fields');
+      }
+      
+      // Validate chart type
+      const validChartTypes = ['line', 'bar', 'pie', 'scatter', 'area', 'heatmap'];
+      if (!validChartTypes.includes(chartResponse.chartType)) {
+        console.warn(`Invalid chart type: ${chartResponse.chartType}, defaulting to 'bar'`);
+        chartResponse.chartType = 'bar';
+      }
+      
+      // Validate config structure
+      if (!chartResponse.config.xAxis || !chartResponse.config.yAxis) {
+        throw new Error('Invalid response structure from Gemini API - missing axis configuration');
+      }
+      
+      // Ensure yAxis is an array
+      if (!Array.isArray(chartResponse.config.yAxis)) {
+        console.warn('yAxis is not an array, converting to array');
+        chartResponse.config.yAxis = [chartResponse.config.yAxis as string];
+      }
+      
+      // Ensure data is an array
+      if (!Array.isArray(chartResponse.data)) {
+        console.warn('Data is not an array, defaulting to empty array');
+        chartResponse.data = [];
+      }
+      
+      // Ensure filters is an array
+      if (!Array.isArray(chartResponse.filters)) {
+        console.warn('Filters is not an array, defaulting to empty array');
+        chartResponse.filters = [];
       }
       
       return chartResponse;
     } catch (parseError) {
-      console.error('Raw Gemini response:', responseText);
-      console.error('Processed JSON text:', jsonText);
-      throw new Error(`Failed to parse Gemini response as JSON: ${parseError}`);
+      console.error('Raw Gemini response (structured):', responseText);
+      throw new Error(`Failed to parse structured Gemini response as JSON: ${parseError}`);
     }
     
   } catch (error) {
@@ -175,10 +390,116 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
     if (retryCount < MAX_RETRIES) {
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-      return callGeminiAPI(prompt, retryCount + 1);
+      return callGeminiAPIWithStructuredOutput(prompt, retryCount + 1);
     }
     
     throw error;
+  }
+}
+
+/**
+ * Two-step API call: code execution + structured output
+ */
+async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResponse> {
+  console.log('Starting two-step Gemini API call for query:', query);
+  
+  let rawResponseText = '';
+  let computationCode = '';
+  let computationResult = '';
+  
+  try {
+    // Step 1: Get raw response with code execution
+    console.log('Step 1: Using code execution for analysis');
+    const codeExecResponse = await callGeminiAPIWithCodeExecution(prompt);
+    
+    // Extract the data from the response
+    rawResponseText = codeExecResponse.rawResponseText;
+    computationCode = codeExecResponse.computationCode;
+    computationResult = codeExecResponse.computationResult;
+
+    console.log('Raw Gemini code execution response:', {
+      rawResponseText,
+      computationCode,
+      computationResult
+    });
+    
+  } catch (codeExecError: any) {
+    console.log('Step 1 encountered an error:', codeExecError);
+    throw codeExecError;
+  }
+  
+  try {
+    // Step 2: Always pass the output to structured output for cleaning/formatting
+    console.log('Step 2: Using structured output to format the response');
+    
+    // Create a prompt for structured output that includes the code execution results
+    const structuredPrompt = `Format this data analysis result into a proper chart response.
+
+Original Query: "${query}"
+Code Execution Output: ${rawResponseText}
+${computationCode ? `\nComputation Code: ${computationCode}` : ''}
+${computationResult ? `\nComputation Result: ${computationResult}` : ''}
+
+Create a complete chart response with:
+1. Appropriate chart type based on the analysis
+2. Clean, formatted data array (limit to 10 items max)
+3. Proper axis configuration
+4. Any relevant filters
+5. Insights from the analysis
+
+The response should analyze datasets with high failure rates as requested.
+
+IMPORTANT: Generate ONLY valid JSON, no markdown or extra text.`;
+
+    const structuredResponse = await callGeminiAPIWithStructuredOutput(structuredPrompt);
+    
+    // Add computation details if they exist
+    if (computationCode || computationResult) {
+      structuredResponse.computation = {
+        code: computationCode,
+        result: computationResult
+      };
+    }
+    
+    console.log('Two-step process successful!');
+    return structuredResponse;
+    
+  } catch (error: any) {
+    console.error('Two-step API call failed:', error);
+    
+    // Provide fallback responses for different error types
+    if (error instanceof Error) {
+      if (error.message.includes('API key not configured')) {
+        throw error; // Let this bubble up as a configuration issue
+      }
+      
+      if (error.message.includes('400 Bad Request') || error.message.includes('Invalid request')) {
+        return {
+          chartType: 'bar' as const,
+          title: 'Service Configuration Error',
+          data: [] as DataQualityRecord[],
+          config: {
+            xAxis: 'dataset_name',
+            yAxis: ['fail_rate_1m']
+          },
+          filters: [],
+          insights: 'The AI service is experiencing configuration issues. Please try again later.'
+        };
+      }
+    }
+    
+    // Generic fallback
+    return {
+      chartType: 'bar' as const,
+      title: 'Query Processing Error',
+      data: [] as DataQualityRecord[],
+      config: {
+        xAxis: 'dataset_name',
+        yAxis: ['fail_rate_1m']
+      },
+      filters: [],
+      insights: `Unable to process the query "${query}". Please try a different question or try again later.`
+    };
   }
 }
 
@@ -201,8 +522,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<AIChartRe
     // Create prompt for Gemini
     const prompt = createGeminiPrompt(sanitizedQuery, body.dataContext);
     
-    // Call Gemini API with retry logic
-    const chartResponse = await callGeminiAPI(prompt);
+    // Call Gemini API with smart routing
+    const chartResponse = await callGeminiAPI(prompt, sanitizedQuery);
     
     return NextResponse.json(chartResponse);
     

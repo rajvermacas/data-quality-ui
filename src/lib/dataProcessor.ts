@@ -90,7 +90,7 @@ export function getUrgentAttentionItems(data: DataQualityRecord[]): UrgentAttent
     .sort((a, b) => b.fail_rate_1m - a.fail_rate_1m);
 }
 
-export function filterData(data: DataQualityRecord[], filters: Record<string, string[]>): DataQualityRecord[] {
+export function filterData(data: DataQualityRecord[], filters: Record<string, string[] | undefined>): DataQualityRecord[] {
   return data.filter(item => {
     return Object.entries(filters).every(([key, values]) => {
       if (!values || values.length === 0) return true;

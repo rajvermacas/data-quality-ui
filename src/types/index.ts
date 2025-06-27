@@ -28,7 +28,7 @@ export interface DataQualityRecord {
   last_execution_level: string;
 }
 
-export interface FilterState {
+export interface FilterState extends Record<string, string[] | undefined> {
   source?: string[];
   dataset_name?: string[];
   rule_type?: string[];
@@ -83,6 +83,10 @@ export interface AIChartResponse {
     values: string[];
   }>;
   insights?: string;
+  computation?: {
+    code: string;
+    result: string;
+  };
 }
 
 export interface APIErrorResponse {

@@ -177,7 +177,7 @@ export function AIQuerySection({ data }: AIQuerySectionProps) {
       default:
         return (
           <div className="p-4 bg-gray-100 rounded-lg">
-            <p>Chart type '{chartType}' not yet implemented</p>
+            <p>Chart type &apos;{chartType}&apos; not yet implemented</p>
           </div>
         );
     }
