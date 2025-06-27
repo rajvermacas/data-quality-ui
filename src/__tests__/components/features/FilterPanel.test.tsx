@@ -6,6 +6,7 @@ import { DataQualityRecord } from '@/types';
 jest.mock('@/lib/dataProcessor', () => ({
   getUniqueValues: jest.fn((data, field) => {
     if (field === 'source') return ['SYSTEM_A', 'SYSTEM_B'];
+    if (field === 'dataset_name') return ['Test Dataset 1', 'Compliance Data'];
     if (field === 'rule_type') return ['BUSINESS_RULE', 'ATTRIBUTE'];
     if (field === 'dimension') return ['Validity', 'Completeness'];
     if (field === 'trend_flag') return ['up', 'down', 'equal'];
@@ -63,6 +64,7 @@ describe('FilterPanel', () => {
     
     expect(screen.getByText('Filters')).toBeInTheDocument();
     expect(screen.getByText('Source System')).toBeInTheDocument();
+    expect(screen.getByText('Dataset Name')).toBeInTheDocument();
     expect(screen.getByText('Rule Type')).toBeInTheDocument();
     expect(screen.getByText('Dimension')).toBeInTheDocument();
     expect(screen.getByText('Trend Direction')).toBeInTheDocument();
@@ -79,6 +81,8 @@ describe('FilterPanel', () => {
     
     expect(screen.getByText('SYSTEM_A')).toBeInTheDocument();
     expect(screen.getByText('SYSTEM_B')).toBeInTheDocument();
+    expect(screen.getByText('Test Dataset 1')).toBeInTheDocument();
+    expect(screen.getByText('Compliance Data')).toBeInTheDocument();
     expect(screen.getByText('BUSINESS_RULE')).toBeInTheDocument();
     expect(screen.getByText('ATTRIBUTE')).toBeInTheDocument();
     expect(screen.getByText('Validity')).toBeInTheDocument();
@@ -176,5 +180,34 @@ describe('FilterPanel', () => {
     );
     
     expect(screen.queryByText('Clear All Filters')).not.toBeInTheDocument();
+  });
+
+  it('should handle dataset name filter selection', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    const complianceDataCheckbox = screen.getByLabelText('Compliance Data');
+    fireEvent.click(complianceDataCheckbox);
+    
+    expect(mockOnFiltersChange).toHaveBeenCalledWith({
+      dataset_name: ['Compliance Data']
+    });
+  });
+
+  it('should show active filter count with dataset name filter', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{ dataset_name: ['Compliance Data'], source: ['SYSTEM_A'] }}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    expect(screen.getByText('2 active')).toBeInTheDocument();
   });
 });

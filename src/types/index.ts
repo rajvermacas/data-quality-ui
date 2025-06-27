@@ -30,6 +30,7 @@ export interface DataQualityRecord {
 
 export interface FilterState {
   source?: string[];
+  dataset_name?: string[];
   rule_type?: string[];
   dimension?: string[];
   tenant_id?: string[];

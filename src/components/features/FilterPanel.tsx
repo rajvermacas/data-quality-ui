@@ -13,6 +13,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
 
   const filterConfig = [
     { key: 'source', label: 'Source System' },
+    { key: 'dataset_name', label: 'Dataset Name' },
     { key: 'rule_type', label: 'Rule Type' },
     { key: 'dimension', label: 'Dimension' },
     { key: 'trend_flag', label: 'Trend Direction' }
