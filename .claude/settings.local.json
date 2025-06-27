@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__firecrawl__firecrawl_search",
+      "mcp__firecrawl__*",
+      "mcp__context7__get-library-docs",
+      "mcp__context7__*",
+      "mcp__firecrawl__firecrawl_scrape"
     ],
     "deny": []
   }

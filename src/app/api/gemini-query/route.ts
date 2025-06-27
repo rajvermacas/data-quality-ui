@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIQueryRequest, AIChartResponse, APIErrorResponse } from '@/types';
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
 
@@ -54,7 +54,7 @@ User Query: "${query}"
 
 Data Context (sample records): ${contextData}
 
-IMPORTANT: Your response must be valid JSON only, no additional text. The JSON should follow this exact structure:
+CRITICAL: Return ONLY valid JSON. No markdown formatting, no code blocks, no explanations. Just the raw JSON object following this exact structure:
 
 {
   "chartType": "line|bar|pie|scatter|area|heatmap",
@@ -118,6 +118,9 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
           topK: 1,
           topP: 1,
           maxOutputTokens: 2048,
+          thinkingConfig: {
+            thinkingBudget: 0  // Disable thinking for faster responses in MVP
+          }
         },
       }),
     });
@@ -135,7 +138,23 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
     const responseText = data.candidates[0].content.parts[0].text;
     
     try {
-      const chartResponse: AIChartResponse = JSON.parse(responseText);
+      // Extract JSON from markdown if needed (Gemini 2.5 often wraps JSON in markdown)
+      let jsonText = responseText.trim();
+      
+      // Remove markdown code block formatting if present
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      // Try to find JSON object if wrapped in other text
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+      
+      const chartResponse: AIChartResponse = JSON.parse(jsonText);
       
       // Validate required fields
       if (!chartResponse.chartType || !chartResponse.title || !chartResponse.config) {
@@ -144,6 +163,8 @@ async function callGeminiAPI(prompt: string, retryCount = 0): Promise<AIChartRes
       
       return chartResponse;
     } catch (parseError) {
+      console.error('Raw Gemini response:', responseText);
+      console.error('Processed JSON text:', jsonText);
       throw new Error(`Failed to parse Gemini response as JSON: ${parseError}`);
     }
     
