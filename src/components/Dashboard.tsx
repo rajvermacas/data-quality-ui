@@ -9,6 +9,7 @@ import { TrendChart } from '@/components/features/TrendChart';
 import { FilterPanel } from '@/components/features/FilterPanel';
 import { Heatmap } from '@/components/features/Heatmap';
 import { SystemHealthMatrix } from '@/components/features/SystemHealthMatrix';
+import { AIQuerySection } from '@/components/features/AIQuerySection';
 
 interface DashboardState {
   data: DataQualityRecord[];
@@ -116,6 +117,9 @@ export function Dashboard() {
 
           {/* Urgent Attention Widget */}
           <UrgentAttentionWidget items={state.urgentItems} />
+
+          {/* AI Query Section */}
+          <AIQuerySection data={state.data} />
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Filter Panel */}

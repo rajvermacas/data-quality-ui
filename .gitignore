@@ -104,7 +104,6 @@ docker-compose*
 .circleci/
 
 # Security
-.env.example
 secrets/
 *.pem
 *.key
@@ -137,3 +136,17 @@ ehthumbs.db
 
 # HTML2Canvas cache
 .html2canvas-cache/
+
+# AI Integration specific
+# Gemini API responses cache (future feature)
+.ai-cache/
+.gemini-cache/
+
+# Query history and logs (future feature)  
+.query-history/
+ai-query-logs/
+
+# AI-generated exports and temp files
+ai-exports/
+*.ai-export.json
+*.gemini-response.json

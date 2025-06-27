@@ -61,3 +61,32 @@ export interface DashboardMetrics {
   trendingUp: number;
   stable: number;
 }
+
+export interface AIQueryRequest {
+  query: string;
+  dataContext?: Partial<DataQualityRecord>[];
+  maxResults?: number;
+}
+
+export interface AIChartResponse {
+  chartType: 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'heatmap';
+  title: string;
+  data: DataQualityRecord[];
+  config: {
+    xAxis: string;
+    yAxis: string[];
+    groupBy?: string;
+  };
+  filters: Array<{
+    field: string;
+    label: string;
+    values: string[];
+  }>;
+  insights?: string;
+}
+
+export interface APIErrorResponse {
+  error: string;
+  code?: string;
+  retryAfter?: number;
+}
