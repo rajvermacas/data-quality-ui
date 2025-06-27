@@ -57,6 +57,9 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
  */
 function createGeminiPrompt(query: string, dataContext?: any[]): string {
   console.log('Data context received:', dataContext ? `${dataContext.length} records` : 'No data');
+  if (dataContext && Array.isArray(dataContext) && dataContext.length > 0) {
+    console.log('First row of dataContext:', dataContext[0]);
+  }
   
   // Limit data context to prevent response truncation
   const limitedContext = dataContext ? dataContext.slice(0, 20) : [];
