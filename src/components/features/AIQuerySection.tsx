@@ -49,18 +49,8 @@ export function AIQuerySection({ data }: AIQuerySectionProps) {
     }));
 
     try {
-      // Prepare data context
-      const dataContext = data.map(record => ({
-        dataset_name: record.dataset_name,
-        source: record.source,
-        tenant_id: record.tenant_id,
-        rule_type: record.rule_type,
-        dimension: record.dimension,
-        fail_rate_1m: record.fail_rate_1m,
-        fail_rate_3m: record.fail_rate_3m,
-        fail_rate_12m: record.fail_rate_12m,
-        trend_flag: record.trend_flag
-      }));
+      // Prepare data context with all available fields
+      const dataContext = data;
 
       const response = await fetch('/api/gemini-query', {
         method: 'POST',

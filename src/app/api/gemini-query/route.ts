@@ -58,17 +58,17 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
 function createGeminiPrompt(query: string, dataContext?: any[]): string {
   console.log('Data context received:', dataContext ? `${dataContext.length} records` : 'No data');
   if (dataContext && Array.isArray(dataContext) && dataContext.length > 0) {
-    console.log('First row of dataContext:', dataContext[0]);
+    console.log('First row of dataContext (ALL FIELDS):', dataContext[0]);
   }
   
-  // Limit data context to prevent response truncation
-  const limitedContext = dataContext ? dataContext.slice(0, 20) : [];
-  const contextData = JSON.stringify(limitedContext);
+  // Use all available data context without truncation
+  const fullContext = dataContext || [];
+  const contextData = JSON.stringify(fullContext);
   
   return `You are a data visualization expert. Analyze the user query and data to create a chart response.
 
 User Query: "${query}"
-Data Context (${limitedContext.length} sample records): ${contextData}
+Data Context (${fullContext.length} complete records with all fields): ${contextData}
 
 CRITICAL INSTRUCTIONS:
 1. **Generate ONLY a single, complete JSON object**
@@ -107,10 +107,14 @@ Chart Types:
 - "pie": proportions/percentages
 - "scatter": correlations
 
-Key Data Fields:
-- dataset_name, source, tenant_id, rule_type, dimension
-- fail_rate_1m, fail_rate_3m, fail_rate_12m
-- trend_flag (up/down/equal)
+Available Data Fields (all 27 fields):
+- Identifiers: source, tenant_id, dataset_uuid, dataset_name, rule_code, rule_name
+- Classification: rule_type, dimension, rule_description, category, last_execution_level
+- Dates: business_date_latest
+- Counts: dataset_record_count_latest, filtered_record_count_latest
+- Pass/Fail counts: pass_count_total, fail_count_total, pass_count_1m, fail_count_1m, pass_count_3m, fail_count_3m, pass_count_12m, fail_count_12m
+- Failure rates: fail_rate_total, fail_rate_1m, fail_rate_3m, fail_rate_12m
+- Trends: trend_flag (up/down/equal)
 
 IMPORTANT: Generate one complete JSON object. Start with "{" and end with "}". No additional text.`;
 }
@@ -212,6 +216,7 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
  */
 async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0): Promise<AIChartResponse> {
   const apiKey = process.env.GEMINI_API_KEY;
+  console.log('Structured output prompt:', prompt, 'Retry count:', retryCount);
   
   if (!apiKey) {
     throw new Error('Gemini API key not configured');
@@ -250,15 +255,33 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
                 items: {
                   type: "object",
                   properties: {
-                    dataset_name: { type: "string" },
                     source: { type: "string" },
                     tenant_id: { type: "string" },
+                    dataset_uuid: { type: "string" },
+                    dataset_name: { type: "string" },
+                    rule_code: { type: "string" },
+                    rule_name: { type: "string" },
                     rule_type: { type: "string" },
                     dimension: { type: "string" },
+                    rule_description: { type: "string" },
+                    category: { type: "string" },
+                    business_date_latest: { type: "string" },
+                    dataset_record_count_latest: { type: "number" },
+                    filtered_record_count_latest: { type: "number" },
+                    pass_count_total: { type: "number" },
+                    fail_count_total: { type: "number" },
+                    pass_count_1m: { type: "number" },
+                    fail_count_1m: { type: "number" },
+                    pass_count_3m: { type: "number" },
+                    fail_count_3m: { type: "number" },
+                    pass_count_12m: { type: "number" },
+                    fail_count_12m: { type: "number" },
+                    fail_rate_total: { type: "number" },
                     fail_rate_1m: { type: "number" },
                     fail_rate_3m: { type: "number" },
                     fail_rate_12m: { type: "number" },
-                    trend_flag: { type: "string", enum: ["up", "down", "equal"] }
+                    trend_flag: { type: "string", enum: ["up", "down", "equal"] },
+                    last_execution_level: { type: "string" }
                   }
                 }
               },
@@ -388,6 +411,8 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
  */
 async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResponse> {
   console.log('Starting two-step Gemini API call for query:', query);
+  console.log('Prompt sent to Gemini:', prompt);
+  console.log('Original user query:', query);
   
   let rawResponseText = '';
   let computationCode = '';
