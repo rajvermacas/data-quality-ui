@@ -49,8 +49,8 @@ export function AIQuerySection({ data }: AIQuerySectionProps) {
     }));
 
     try {
-      // Prepare data context (limit to 50 records for MVP)
-      const dataContext = data.slice(0, 50).map(record => ({
+      // Prepare data context
+      const dataContext = data.map(record => ({
         dataset_name: record.dataset_name,
         source: record.source,
         tenant_id: record.tenant_id,
@@ -69,8 +69,7 @@ export function AIQuerySection({ data }: AIQuerySectionProps) {
         },
         body: JSON.stringify({
           query: state.query,
-          dataContext,
-          maxResults: 50
+          dataContext
         }),
       });
 

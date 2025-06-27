@@ -46,7 +46,8 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
  * Creates the prompt for Gemini API with structured output requirements
  */
 function createGeminiPrompt(query: string, dataContext?: any[]): string {
-  const contextData = dataContext ? JSON.stringify(dataContext.slice(0, 50)) : '[]';
+  console.log('Data context received:', dataContext ? `${dataContext.length} records` : 'No data');
+  const contextData = dataContext ? JSON.stringify(dataContext) : '[]';
   
   return `You are a data visualization expert analyzing data quality metrics. Based on the user query and data context, generate a JSON response for creating a chart.
 
