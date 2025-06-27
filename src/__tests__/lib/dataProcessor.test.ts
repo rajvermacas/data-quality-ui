@@ -1,4 +1,4 @@
-import { processCSVData, calculateDashboardMetrics, getUrgentAttentionItems } from '@/lib/dataProcessor';
+import { processCSVData, calculateDashboardMetrics, getUrgentAttentionItems, filterData, getUniqueValues } from '@/lib/dataProcessor';
 import { DataQualityRecord } from '@/types';
 
 const mockData: DataQualityRecord[] = [
@@ -136,6 +136,86 @@ TEST_SYSTEM,tenant_001,ds001,Test Dataset,1,TEST_RULE,BUSINESS_RULE,Validity,Tes
     it('should handle empty data array', () => {
       const urgentItems = getUrgentAttentionItems([]);
       expect(urgentItems).toEqual([]);
+    });
+  });
+
+  describe('filterData', () => {
+    it('should filter by string array filters', () => {
+      const filters = { source: ['TEST_SYSTEM'] };
+      const result = filterData(mockData, filters);
+      
+      expect(result).toHaveLength(1);
+      expect(result[0].source).toBe('TEST_SYSTEM');
+    });
+
+    it('should filter by multiple criteria', () => {
+      const filters = { 
+        source: ['TEST_SYSTEM'], 
+        trend_flag: ['down'] 
+      };
+      const result = filterData(mockData, filters);
+      
+      expect(result).toHaveLength(1);
+      expect(result[0].source).toBe('TEST_SYSTEM');
+      expect(result[0].trend_flag).toBe('down');
+    });
+
+    it('should filter by date range - start date only', () => {
+      const filters = { 
+        dateRange: { start: '2024-01-02', end: '' }
+      };
+      const result = filterData(mockData, filters);
+      
+      expect(result).toHaveLength(1);
+      expect(result[0].business_date_latest).toBe('2024-01-02');
+    });
+
+    it('should filter by date range - end date only', () => {
+      const filters = { 
+        dateRange: { start: '', end: '2024-01-01' }
+      };
+      const result = filterData(mockData, filters);
+      
+      expect(result).toHaveLength(1);
+      expect(result[0].business_date_latest).toBe('2024-01-01');
+    });
+
+    it('should filter by date range - both start and end', () => {
+      const filters = { 
+        dateRange: { start: '2024-01-01', end: '2024-01-01' }
+      };
+      const result = filterData(mockData, filters);
+      
+      expect(result).toHaveLength(1);
+      expect(result[0].business_date_latest).toBe('2024-01-01');
+    });
+
+    it('should return all data when no filters applied', () => {
+      const result = filterData(mockData, {});
+      expect(result).toHaveLength(2);
+    });
+
+    it('should return all data when empty filter arrays', () => {
+      const filters = { source: [] };
+      const result = filterData(mockData, filters);
+      expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('getUniqueValues', () => {
+    it('should return unique values for a field', () => {
+      const result = getUniqueValues(mockData, 'source');
+      expect(result).toEqual(['TEST_SYSTEM', 'TEST_SYSTEM_2']);
+    });
+
+    it('should return sorted unique values', () => {
+      const result = getUniqueValues(mockData, 'trend_flag');
+      expect(result).toEqual(['down', 'up']);
+    });
+
+    it('should handle empty data array', () => {
+      const result = getUniqueValues([], 'source');
+      expect(result).toEqual([]);
     });
   });
 });

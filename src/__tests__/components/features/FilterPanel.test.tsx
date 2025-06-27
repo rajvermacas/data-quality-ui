@@ -10,6 +10,11 @@ jest.mock('@/lib/dataProcessor', () => ({
     if (field === 'rule_type') return ['BUSINESS_RULE', 'ATTRIBUTE'];
     if (field === 'dimension') return ['Validity', 'Completeness'];
     if (field === 'trend_flag') return ['up', 'down', 'equal'];
+    if (field === 'tenant_id') {
+      // Return unique tenant_ids from the actual data passed to it
+      const uniqueTenants = [...new Set(data.map(item => item.tenant_id))];
+      return uniqueTenants;
+    }
     return [];
   })
 }));
@@ -209,5 +214,63 @@ describe('FilterPanel', () => {
     );
     
     expect(screen.getByText('2 active')).toBeInTheDocument();
+  });
+
+  // Stage 2 Enhancement Tests - Date Range Picker
+  it('should render date range picker section', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    expect(screen.getByText('Date Range')).toBeInTheDocument();
+    const dateInputs = screen.getAllByDisplayValue('');
+    expect(dateInputs).toHaveLength(2); // Start and end date inputs
+  });
+
+  it('should handle date range filter changes', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    const dateInputs = screen.getAllByDisplayValue('');
+    const startDateInput = dateInputs[0];
+    const endDateInput = dateInputs[1];
+    
+    fireEvent.change(startDateInput, { target: { value: '2024-01-01' } });
+    
+    expect(mockOnFiltersChange).toHaveBeenCalledWith({
+      dateRange: { start: '2024-01-01', end: '' }
+    });
+    
+    fireEvent.change(endDateInput, { target: { value: '2024-12-31' } });
+    
+    expect(mockOnFiltersChange).toHaveBeenCalledWith({
+      dateRange: { start: '', end: '2024-12-31' }
+    });
+  });
+
+  it('should show tenant filter for multi-tenant support', () => {
+    const multiTenantData = [
+      ...mockData,
+      { ...mockData[0], tenant_id: 'tenant_002' }
+    ];
+    
+    render(
+      <FilterPanel
+        data={multiTenantData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    expect(screen.getByText('Tenant')).toBeInTheDocument();
   });
 });

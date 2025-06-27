@@ -32,7 +32,7 @@ export function Dashboard() {
     error: null
   });
 
-  const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [filters, setFilters] = useState<Record<string, string[] | { start: string; end: string }>>({});
 
   useEffect(() => {
     loadDashboardData();

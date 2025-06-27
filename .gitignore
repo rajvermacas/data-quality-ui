@@ -75,3 +75,37 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Storybook
+/storybook-static
+
+# Bundle analyzer
+.next/analyze
+
+# Editor configurations
+.editorconfig
+.prettierrc*
+.eslintcache
+
+# Test artifacts
+/jest-coverage/
+/playwright-report/
+/test-results/
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+
+# Security
+.env.example
+secrets/
+*.pem
+*.key
+*.cert

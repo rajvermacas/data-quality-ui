@@ -90,11 +90,35 @@ export function getUrgentAttentionItems(data: DataQualityRecord[]): UrgentAttent
     .sort((a, b) => b.fail_rate_1m - a.fail_rate_1m);
 }
 
-export function filterData(data: DataQualityRecord[], filters: Record<string, string[]>): DataQualityRecord[] {
+export function filterData(data: DataQualityRecord[], filters: Record<string, string[] | { start: string; end: string }>): DataQualityRecord[] {
   return data.filter(item => {
     return Object.entries(filters).every(([key, values]) => {
-      if (!values || values.length === 0) return true;
-      return values.includes(item[key as keyof DataQualityRecord] as string);
+      if (!values) return true;
+      
+      // Handle date range filtering
+      if (key === 'dateRange' && typeof values === 'object' && 'start' in values) {
+        const dateRange = values as { start: string; end: string };
+        const itemDate = new Date(item.business_date_latest);
+        
+        let inRange = true;
+        if (dateRange.start) {
+          const startDate = new Date(dateRange.start);
+          inRange = inRange && itemDate >= startDate;
+        }
+        if (dateRange.end) {
+          const endDate = new Date(dateRange.end);
+          inRange = inRange && itemDate <= endDate;
+        }
+        return inRange;
+      }
+      
+      // Handle array filters
+      if (Array.isArray(values)) {
+        if (values.length === 0) return true;
+        return values.includes(item[key as keyof DataQualityRecord] as string);
+      }
+      
+      return true;
     });
   });
 }

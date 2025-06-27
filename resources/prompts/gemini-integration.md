@@ -1,0 +1,2 @@
+Right now on Data Quality Dashboard, the graph is a constant graph with dynamic filters.
+I want to have a feature where the user can input his query in natural language and using google gemini api using code interpreter the gemini model should be able to generate graphs on runtime and dynamically these graphs should be shown on the UI.
