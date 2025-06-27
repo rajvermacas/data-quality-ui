@@ -2,15 +2,10 @@ import { useState } from 'react';
 import { DataQualityRecord } from '@/types';
 import { getUniqueValues } from '@/lib/dataProcessor';
 
-interface DateRange {
-  start: string;
-  end: string;
-}
-
 interface FilterPanelProps {
   data: DataQualityRecord[];
-  filters: Record<string, string[] | DateRange>;
-  onFiltersChange: (filters: Record<string, string[] | DateRange>) => void;
+  filters: Record<string, string[]>;
+  onFiltersChange: (filters: Record<string, string[]>) => void;
 }
 
 export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps) {
@@ -30,7 +25,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
   ];
 
   const handleFilterChange = (filterKey: string, value: string, checked: boolean) => {
-    const currentValues = filters[filterKey] as string[] || [];
+    const currentValues = filters[filterKey] || [];
     const newValues = checked
       ? [...currentValues, value]
       : currentValues.filter(v => v !== value);
@@ -41,27 +36,13 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
     });
   };
 
-  const handleDateRangeChange = (field: 'start' | 'end', value: string) => {
-    const currentDateRange = filters.dateRange as DateRange || { start: '', end: '' };
-    const newDateRange = { ...currentDateRange, [field]: value };
-    
-    onFiltersChange({
-      ...filters,
-      dateRange: newDateRange
-    });
-  };
-
   const clearAllFilters = () => {
     onFiltersChange({});
   };
 
   const getFilterCount = () => {
     return Object.entries(filters).reduce((count, [key, values]) => {
-      if (key === 'dateRange') {
-        const dateRange = values as DateRange;
-        return count + (dateRange.start || dateRange.end ? 1 : 0);
-      }
-      return count + (values as string[]).length;
+      return count + values.length;
     }, 0);
   };
 
@@ -86,33 +67,9 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
 
       {isOpen && (
         <div className="space-y-4">
-          {/* Date Range Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Date Range
-            </label>
-            <div className="space-y-2">
-              <input
-                type="date"
-                placeholder="Start Date"
-                value={(filters.dateRange as DateRange)?.start || ''}
-                onChange={(e) => handleDateRangeChange('start', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <input
-                type="date"
-                placeholder="End Date"
-                value={(filters.dateRange as DateRange)?.end || ''}
-                onChange={(e) => handleDateRangeChange('end', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Other Filters */}
           {filterConfig.map((config) => {
             const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
-            const selectedValues = filters[config.key] as string[] || [];
+            const selectedValues = filters[config.key] || [];
 
             return (
               <div key={config.key}>

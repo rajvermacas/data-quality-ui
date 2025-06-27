@@ -160,35 +160,6 @@ TEST_SYSTEM,tenant_001,ds001,Test Dataset,1,TEST_RULE,BUSINESS_RULE,Validity,Tes
       expect(result[0].trend_flag).toBe('down');
     });
 
-    it('should filter by date range - start date only', () => {
-      const filters = { 
-        dateRange: { start: '2024-01-02', end: '' }
-      };
-      const result = filterData(mockData, filters);
-      
-      expect(result).toHaveLength(1);
-      expect(result[0].business_date_latest).toBe('2024-01-02');
-    });
-
-    it('should filter by date range - end date only', () => {
-      const filters = { 
-        dateRange: { start: '', end: '2024-01-01' }
-      };
-      const result = filterData(mockData, filters);
-      
-      expect(result).toHaveLength(1);
-      expect(result[0].business_date_latest).toBe('2024-01-01');
-    });
-
-    it('should filter by date range - both start and end', () => {
-      const filters = { 
-        dateRange: { start: '2024-01-01', end: '2024-01-01' }
-      };
-      const result = filterData(mockData, filters);
-      
-      expect(result).toHaveLength(1);
-      expect(result[0].business_date_latest).toBe('2024-01-01');
-    });
 
     it('should return all data when no filters applied', () => {
       const result = filterData(mockData, {});

@@ -5,7 +5,7 @@ import { filterData } from '@/lib/dataProcessor';
 
 interface TrendChartProps {
   data: DataQualityRecord[];
-  filters: Record<string, string[] | { start: string; end: string }>;
+  filters: Record<string, string[]>;
 }
 
 export function TrendChart({ data, filters }: TrendChartProps) {
