@@ -7,6 +7,8 @@ import { MetricsCards } from '@/components/features/MetricsCards';
 import { UrgentAttentionWidget } from '@/components/features/UrgentAttentionWidget';
 import { TrendChart } from '@/components/features/TrendChart';
 import { FilterPanel } from '@/components/features/FilterPanel';
+import { Heatmap } from '@/components/features/Heatmap';
+import { SystemHealthMatrix } from '@/components/features/SystemHealthMatrix';
 
 interface DashboardState {
   data: DataQualityRecord[];
@@ -33,6 +35,7 @@ export function Dashboard() {
   });
 
   const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [activeView, setActiveView] = useState<'trends' | 'heatmap' | 'matrix'>('trends');
 
   useEffect(() => {
     loadDashboardData();
@@ -126,7 +129,49 @@ export function Dashboard() {
 
             {/* Main Visualization Area */}
             <div className="lg:col-span-3">
-              <TrendChart data={state.data} filters={filters} />
+              {/* View Selector */}
+              <div className="bg-white rounded-lg shadow-sm border mb-6 p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">Data Visualization</h2>
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setActiveView('trends')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        activeView === 'trends' 
+                          ? 'bg-white text-blue-700 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      📈 Trend Analysis
+                    </button>
+                    <button
+                      onClick={() => setActiveView('heatmap')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        activeView === 'heatmap' 
+                          ? 'bg-white text-blue-700 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      🔥 Heatmap
+                    </button>
+                    <button
+                      onClick={() => setActiveView('matrix')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        activeView === 'matrix' 
+                          ? 'bg-white text-blue-700 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      🎯 Health Matrix
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Visualization Component */}
+              {activeView === 'trends' && <TrendChart data={state.data} filters={filters} />}
+              {activeView === 'heatmap' && <Heatmap data={state.data} filters={filters} />}
+              {activeView === 'matrix' && <SystemHealthMatrix data={state.data} filters={filters} />}
             </div>
           </div>
         </div>

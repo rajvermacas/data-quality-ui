@@ -109,3 +109,31 @@ secrets/
 *.pem
 *.key
 *.cert
+
+# Data Quality Dashboard specific
+# Build artifacts and temporary files
+/resources/reports/
+/resources/exports/
+*.export.png
+*.export.svg
+
+# Chart export temporary files
+/tmp/charts/
+/temp/exports/
+
+# Development artifacts
+.scratch/
+debug/
+*.debug.log
+
+# MacOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows specific
+desktop.ini
+ehthumbs.db
+
+# HTML2Canvas cache
+.html2canvas-cache/
