@@ -120,6 +120,50 @@ IMPORTANT: Generate one complete JSON object. Start with "{" and end with "}". N
 }
 
 /**
+ * Detects if the response is asking for clarification rather than providing analysis
+ */
+function isAskingForClarification(text: string): boolean {
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+  
+  const clarificationPhrases = [
+    'need to know',
+    'please specify',
+    'which dataset',
+    'clarifying question',
+    'could you please',
+    'need more information',
+    'which specific',
+    'can you specify',
+    'need to ask',
+    'more details',
+    'which one',
+    'be more specific'
+  ];
+  
+  const lowerText = text.toLowerCase();
+  return clarificationPhrases.some(phrase => lowerText.includes(phrase));
+}
+
+/**
+ * Creates a clarification response without fake data
+ */
+function createClarificationResponse(clarificationText: string): AIChartResponse {
+  return {
+    chartType: 'bar' as const,
+    title: 'Additional Information Needed',
+    data: [] as DataQualityRecord[],
+    config: {
+      xAxis: 'dataset_name',
+      yAxis: ['fail_rate_1m']
+    },
+    filters: [],
+    insights: clarificationText
+  };
+}
+
+/**
  * Extracts computation data from embedded JSON in text response
  */
 function extractComputationFromEmbeddedJSON(text: string): { computationCode: string; computationResult: string } {
@@ -128,7 +172,7 @@ function extractComputationFromEmbeddedJSON(text: string): { computationCode: st
   
   try {
     // Look for JSON blocks in the text (may be wrapped in ```json```)
-    const jsonMatch = text.match(/```json\s*\n(.*?)\n```/s) || text.match(/(\{.*\})/s);
+    const jsonMatch = text.match(/```json\s*\n([\s\S]*?)\n```/) || text.match(/(\{[\s\S]*\})/);
     
     if (jsonMatch) {
       const jsonStr = jsonMatch[1];
@@ -252,7 +296,7 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
  */
 async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0): Promise<AIChartResponse> {
   const apiKey = process.env.GEMINI_API_KEY;
-  console.log('Structured output prompt:', prompt, 'Retry count:', retryCount);
+  // console.log('Structured output prompt:', prompt, 'Retry count:', retryCount);
   
   if (!apiKey) {
     throw new Error('Gemini API key not configured');
@@ -469,6 +513,12 @@ async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResp
       computationCode,
       computationResult
     });
+    
+    // Check if the response is asking for clarification
+    if (!computationCode && !computationResult && isAskingForClarification(rawResponseText)) {
+      console.log('Detected clarifying question, skipping Step 2 to preserve clarification');
+      return createClarificationResponse(rawResponseText);
+    }
     
   } catch (codeExecError: any) {
     console.log('Step 1 encountered an error:', codeExecError);

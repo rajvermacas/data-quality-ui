@@ -217,4 +217,110 @@ describe('/api/gemini-query', () => {
     expect(data.error).toBe('Failed to process query after multiple attempts');
     expect(global.fetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
   }, 15000);
+
+  // Test clarification detection functionality
+  describe('Clarification Detection', () => {
+    // Mock the clarification detection function for testing
+    function isAskingForClarification(text: string): boolean {
+      if (!text || typeof text !== 'string') {
+        return false;
+      }
+      
+      const clarificationPhrases = [
+        'need to know',
+        'please specify',
+        'which dataset',
+        'clarifying question',
+        'could you please',
+        'need more information',
+        'which specific',
+        'can you specify',
+        'need to ask',
+        'more details',
+        'which one',
+        'be more specific'
+      ];
+      
+      const lowerText = text.toLowerCase();
+      return clarificationPhrases.some(phrase => lowerText.includes(phrase));
+    }
+
+    it('should detect clarification requests', () => {
+      const clarificationTexts = [
+        'I need to know which specific dataset you are referring to.',
+        'Could you please specify the dataset name?',
+        'Which dataset would you like to analyze?',
+        'I need to ask a clarifying question about the data.',
+        'Please specify which system you want to view.',
+        'Can you be more specific about the time period?',
+        'Which one of the datasets should I focus on?'
+      ];
+
+      clarificationTexts.forEach(text => {
+        expect(isAskingForClarification(text)).toBe(true);
+      });
+    });
+
+    it('should not detect clarification in analysis responses', () => {
+      const analysisTexts = [
+        'The dataset shows high failure rates in the last month.',
+        'Based on the data, here are the trending metrics.',
+        'Analysis complete: 5 datasets have issues.',
+        'The computation reveals significant patterns.',
+        'Data visualization shows clear trends.'
+      ];
+
+      analysisTexts.forEach(text => {
+        expect(isAskingForClarification(text)).toBe(false);
+      });
+    });
+
+    it('should handle edge cases', () => {
+      expect(isAskingForClarification('')).toBe(false);
+      expect(isAskingForClarification(null as any)).toBe(false);
+      expect(isAskingForClarification(undefined as any)).toBe(false);
+      expect(isAskingForClarification('123')).toBe(false);
+    });
+
+    it('should be case insensitive', () => {
+      expect(isAskingForClarification('NEED TO KNOW THE DATASET')).toBe(true);
+      expect(isAskingForClarification('Could You Please Specify')).toBe(true);
+      expect(isAskingForClarification('which Dataset do you mean?')).toBe(true);
+    });
+
+    it('should handle clarification response from API without making second call', async () => {
+      const clarificationResponse = {
+        candidates: [{
+          content: {
+            parts: [{
+              text: 'I need to ask a clarifying question to provide the most accurate chart response.\n\nThe user query is "For a single dataset show all its rules names". To fulfill this, I need to know which specific dataset the user is referring to.\n\nCould you please specify the `dataset_name` or `dataset_uuid` for which you\'d like to see the rule names?'
+            }]
+          }
+        }]
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => clarificationResponse
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/gemini-query', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          query: 'For a single dataset show all its rules names'
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.title).toBe('Additional Information Needed');
+      expect(data.data).toEqual([]);
+      expect(data.insights).toContain('Could you please specify');
+      
+      // Should only make one API call (no second call for structured output)
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+  });
 });
