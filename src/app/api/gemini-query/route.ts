@@ -53,23 +53,6 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
 }
 
 /**
- * Determines if a query requires computational analysis
- */
-function isComputationalQuery(query: string): boolean {
-  const computationalKeywords = [
-    'calculate', 'compute', 'analyze', 'analysis', 'correlation', 'correlate', 
-    'average', 'mean', 'median', 'variance', 'standard deviation', 'statistics',
-    'sum', 'count', 'aggregate', 'group by', 'find patterns', 'detect',
-    'predict', 'forecast', 'trend analysis', 'regression', 'distribution',
-    'percentile', 'quartile', 'outlier', 'anomaly', 'statistical',
-    'compare values', 'rank', 'sort by', 'highest', 'lowest', 'maximum', 'minimum'
-  ];
-  
-  const queryLower = query.toLowerCase();
-  return computationalKeywords.some(keyword => queryLower.includes(keyword));
-}
-
-/**
  * Creates the prompt for Gemini API with structured output requirements
  */
 function createGeminiPrompt(query: string, dataContext?: any[]): string {
@@ -247,7 +230,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
           temperature: 0.1,
           topK: 1,
           topP: 1,
-          maxOutputTokens: 1024,
+          maxOutputTokens: 2048,
           responseMimeType: "application/json",
           responseSchema: {
             type: "object",
