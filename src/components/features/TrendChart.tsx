@@ -33,29 +33,54 @@ export function TrendChart({ data, filters }: TrendChartProps) {
       return acc;
     }, {} as Record<string, any>);
 
-    // Calculate averages and convert to chart format
-    return Object.values(aggregated)
+    // Get top datasets by average failure rate
+    const datasets = Object.values(aggregated)
       .map((item: any) => ({
         dataset: item.dataset,
-        '1 Month': (item.fail_rate_1m / item.count * 100).toFixed(2),
-        '3 Months': (item.fail_rate_3m / item.count * 100).toFixed(2),
-        '12 Months': (item.fail_rate_12m / item.count * 100).toFixed(2)
+        avgFailRate: ((item.fail_rate_1m + item.fail_rate_3m + item.fail_rate_12m) / (item.count * 3)),
+        fail_rate_1m: (item.fail_rate_1m / item.count * 100),
+        fail_rate_3m: (item.fail_rate_3m / item.count * 100),
+        fail_rate_12m: (item.fail_rate_12m / item.count * 100)
       }))
+      .sort((a, b) => b.avgFailRate - a.avgFailRate)
       .slice(0, 10); // Limit to top 10 for readability
+
+    // Convert to time-series format with chronological order (12M → 3M → 1M)
+    const timeSeriesData = [
+      {
+        period: '12 Months',
+        ...datasets.reduce((acc, dataset) => {
+          acc[dataset.dataset] = dataset.fail_rate_12m;
+          return acc;
+        }, {} as Record<string, number>)
+      },
+      {
+        period: '3 Months',
+        ...datasets.reduce((acc, dataset) => {
+          acc[dataset.dataset] = dataset.fail_rate_3m;
+          return acc;
+        }, {} as Record<string, number>)
+      },
+      {
+        period: '1 Month',
+        ...datasets.reduce((acc, dataset) => {
+          acc[dataset.dataset] = dataset.fail_rate_1m;
+          return acc;
+        }, {} as Record<string, number>)
+      }
+    ];
+
+    return { timeSeriesData, datasets };
   }, [data, filters]);
 
   const exportData = () => {
-    const filteredData = filterData(data, filters);
     const csvContent = [
-      ['Dataset', 'Source', 'Dimension', '1M Failure Rate', '3M Failure Rate', '12M Failure Rate', 'Trend'],
-      ...filteredData.map(record => [
-        record.dataset_name,
-        record.source,
-        record.dimension,
-        (record.fail_rate_1m * 100).toFixed(2) + '%',
-        (record.fail_rate_3m * 100).toFixed(2) + '%',
-        (record.fail_rate_12m * 100).toFixed(2) + '%',
-        record.trend_flag
+      ['Dataset', '12M Failure Rate (%)', '3M Failure Rate (%)', '1M Failure Rate (%)'],
+      ...chartData.datasets.map(dataset => [
+        dataset.dataset,
+        dataset.fail_rate_12m.toFixed(2),
+        dataset.fail_rate_3m.toFixed(2),
+        dataset.fail_rate_1m.toFixed(2)
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -63,7 +88,7 @@ export function TrendChart({ data, filters }: TrendChartProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'data-quality-trends.csv';
+    a.download = 'dataset-failure-rate-trends.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -72,9 +97,9 @@ export function TrendChart({ data, filters }: TrendChartProps) {
     <div className="card">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Comparative Trend Analysis</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Dataset Failure Rate Trends Over Time</h3>
           <p className="text-sm text-gray-600 mt-1">
-            Failure rates across 1 month, 3 months, and 12 months
+            Progression from 12 months to current month
           </p>
         </div>
         <button
@@ -85,7 +110,7 @@ export function TrendChart({ data, filters }: TrendChartProps) {
         </button>
       </div>
 
-      {chartData.length === 0 ? (
+      {chartData.datasets.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">
           <div className="text-center">
             <div className="text-4xl mb-2">📊</div>
@@ -95,52 +120,45 @@ export function TrendChart({ data, filters }: TrendChartProps) {
       ) : (
         <div className="h-96">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+            <LineChart data={chartData.timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
-                dataKey="dataset" 
-                angle={-45}
-                textAnchor="end"
-                height={100}
-                interval={0}
+                dataKey="period" 
                 fontSize={12}
               />
               <YAxis 
                 label={{ value: 'Failure Rate (%)', angle: -90, position: 'insideLeft' }}
               />
               <Tooltip 
-                formatter={(value: string) => [`${value}%`, '']}
+                formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
                 labelStyle={{ fontSize: 12 }}
               />
               <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="1 Month" 
-                stroke="#EF4444" 
-                strokeWidth={2}
-                dot={{ fill: '#EF4444', strokeWidth: 2, r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="3 Months" 
-                stroke="#F59E0B" 
-                strokeWidth={2}
-                dot={{ fill: '#F59E0B', strokeWidth: 2, r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="12 Months" 
-                stroke="#10B981" 
-                strokeWidth={2}
-                dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-              />
+              {chartData.datasets.map((dataset, index) => {
+                const colors = [
+                  '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+                  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+                ];
+                const color = colors[index % colors.length];
+                
+                return (
+                  <Line 
+                    key={dataset.dataset}
+                    type="monotone" 
+                    dataKey={dataset.dataset}
+                    stroke={color}
+                    strokeWidth={2}
+                    dot={{ fill: color, strokeWidth: 2, r: 4 }}
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
       
       <div className="mt-4 text-xs text-gray-500">
-        Showing {chartData.length} datasets. Use filters to refine the view.
+        Showing {chartData.datasets.length} datasets. Use filters to refine the view.
       </div>
     </div>
   );
