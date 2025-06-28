@@ -8,7 +8,8 @@
       "mcp__context7__get-library-docs",
       "mcp__context7__*",
       "mcp__firecrawl__firecrawl_scrape",
-      "mcp__puppeteer__puppeteer_fill"
+      "mcp__puppeteer__puppeteer_fill",
+      "WebFetch(domain:ai.google.dev)"
     ],
     "deny": []
   }

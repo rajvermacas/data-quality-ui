@@ -287,8 +287,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
             type: "object",
             properties: {
               chartType: {
-                type: "string",
-                enum: ["line", "bar", "pie", "scatter", "area", "heatmap"]
+                type: "string"
               },
               title: {
                 type: "string"
@@ -296,7 +295,12 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
               data: {
                 type: "array",
                 items: {
-                  type: "object"
+                  type: "object",
+                  properties: {
+                    x: { type: "string" },
+                    y: { type: "number" }
+                  },
+                  required: ["x", "y"]
                 }
               },
               config: {
@@ -473,14 +477,19 @@ Analysis Result: ${rawResponseText}
 
 Create a complete chart response with:
 1. Appropriate chart type based on the analysis
-2. Clean, formatted data array (limit to 10 items max, with ONLY x-axis and y-axis fields)
+2. Clean, formatted data array (limit to 10 items max)
 3. Proper axis configuration
 4. Any relevant filters
 5. Insights from the analysis
 
-IMPORTANT: 
-- Data objects should contain ONLY the fields needed for visualization (x-axis and y-axis)
-- Generate ONLY valid JSON, no markdown or extra text`;
+CRITICAL for data array:
+- Each object MUST have exactly two properties: "x" (string) and "y" (number)
+- Map your x-axis values to the "x" property
+- Map your y-axis values to the "y" property
+- Example: {"x": "Dataset A", "y": 0.25}
+- Do NOT use actual field names like "dataset_name" or "fail_rate_1m" in data objects
+
+Generate ONLY valid JSON, no markdown or extra text`;
 
     const structuredResponse = await callGeminiAPIWithStructuredOutput(structuredPrompt);
     
