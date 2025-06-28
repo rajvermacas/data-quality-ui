@@ -4,8 +4,8 @@ import { GoogleAIFileManager } from '@google/generative-ai/server';
 import path from 'path';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-const MAX_RETRIES = 3;
-const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
+const MAX_RETRIES = 5;
+const RETRY_DELAYS = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff delays in ms
 
 // File upload cache - store uploaded file URI for reuse
 let cachedFileUri: string | null = null;
@@ -21,6 +21,26 @@ interface GeminiResponse {
       parts: Array<GeminiResponsePart>;
     };
   }>;
+}
+
+/**
+ * Checks if the error is due to empty parts in Gemini response
+ */
+function isEmptyPartsError(error: any): boolean {
+  const errorMessage = error?.message || '';
+  return errorMessage.includes('No content parts in Gemini API response') ||
+         errorMessage.includes('Empty parts array in Gemini API response') ||
+         errorMessage.includes('No text content found in Gemini API response parts');
+}
+
+/**
+ * Adds jitter to retry delay to prevent synchronized retries
+ */
+function getRetryDelayWithJitter(baseDelay: number): number {
+  const jitterRange = 0.2; // ±20% jitter
+  const minDelay = baseDelay * (1 - jitterRange);
+  const maxDelay = baseDelay * (1 + jitterRange);
+  return Math.floor(Math.random() * (maxDelay - minDelay) + minDelay);
 }
 
 /**
@@ -192,7 +212,14 @@ function isAskingForClarification(text: string): boolean {
   ];
   
   const lowerText = text.toLowerCase();
-  return clarificationPhrases.some(phrase => lowerText.includes(phrase));
+  const matchedPhrase = clarificationPhrases.find(phrase => lowerText.includes(phrase));
+  
+  if (matchedPhrase) {
+    console.log(`Clarification detected - matched phrase: "${matchedPhrase}"`);
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -282,11 +309,6 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
 
     const data: GeminiResponse = await response.json();
     
-    // Debug log raw response for problematic queries
-    if (prompt.toLowerCase().includes('worst dataset')) {
-      console.log('Debug: Raw Gemini response for "worst dataset" query:', JSON.stringify(data, null, 2));
-    }
-    
     if (!data.candidates || data.candidates.length === 0) {
       console.error('Invalid Gemini response structure:', JSON.stringify(data, null, 2));
       throw new Error('No response candidates from Gemini API');
@@ -305,17 +327,6 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
       throw new Error('No content parts in Gemini API response');
     }
     
-    // Debug log the response structure for problematic queries
-    if (prompt.toLowerCase().includes('worst dataset')) {
-      console.log('Debug: Response structure for "worst dataset" query:', {
-        hasContent: !!data.candidates[0].content,
-        hasParts: !!responseParts,
-        partsType: typeof responseParts,
-        isArray: Array.isArray(responseParts),
-        partsLength: Array.isArray(responseParts) ? responseParts.length : 'N/A',
-        firstPart: responseParts[0] || 'undefined'
-      });
-    }
     
     // Process all response parts
     let responseText = '';
@@ -332,12 +343,6 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
       // More defensive checks
       if (part && typeof part === 'object' && 'text' in part) {
         responseText += part.text;
-      } else if (prompt.toLowerCase().includes('worst dataset')) {
-        console.log('Debug: Invalid part structure:', { 
-          part, 
-          type: typeof part,
-          hasText: part ? 'text' in part : 'part is null/undefined'
-        });
       }
     }
     
@@ -354,8 +359,9 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
     console.error(`Gemini API call failed (attempt ${retryCount + 1}):`, error);
     
     if (retryCount < MAX_RETRIES) {
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
+      // Wait before retrying with jitter
+      const delay = getRetryDelayWithJitter(RETRY_DELAYS[retryCount]);
+      await new Promise(resolve => setTimeout(resolve, delay));
       return callGeminiAPIWithCodeExecution(prompt, fileUri, retryCount + 1);
     }
     
@@ -482,17 +488,6 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, fileUri?: strin
       throw new Error('No content parts in Gemini API structured response');
     }
     
-    // Debug log for problematic queries
-    if (prompt.toLowerCase().includes('worst dataset')) {
-      console.log('Debug: Structured response for "worst dataset" query:', {
-        hasContent: !!data.candidates[0].content,
-        hasParts: !!structuredParts,
-        partsType: typeof structuredParts,
-        isArray: Array.isArray(structuredParts),
-        partsLength: Array.isArray(structuredParts) ? structuredParts.length : 'N/A',
-        firstPart: structuredParts[0] || 'undefined'
-      });
-    }
     
     // Ensure parts is an array (sometimes API returns a single object)
     const structuredPartsArray = Array.isArray(structuredParts) ? structuredParts : [structuredParts];
@@ -555,10 +550,17 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, fileUri?: strin
         chartResponse.data = [];
       }
       
-      // Ensure filters is an array
+      // Ensure filters is an array and validate structure
       if (!Array.isArray(chartResponse.filters)) {
         console.warn('Filters is not an array, defaulting to empty array');
         chartResponse.filters = [];
+      } else {
+        // Validate each filter has the required structure
+        chartResponse.filters = chartResponse.filters.map(filter => ({
+          field: filter.field || '',
+          label: filter.label || filter.field || 'Unknown',
+          values: Array.isArray(filter.values) ? filter.values : []
+        }));
       }
       
       return chartResponse;
@@ -571,9 +573,124 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, fileUri?: strin
     console.error(`Gemini API call failed (attempt ${retryCount + 1}):`, error);
     
     if (retryCount < MAX_RETRIES) {
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
+      // Wait before retrying with jitter
+      const delay = getRetryDelayWithJitter(RETRY_DELAYS[retryCount]);
+      await new Promise(resolve => setTimeout(resolve, delay));
       return callGeminiAPIWithStructuredOutput(prompt, fileUri, retryCount + 1);
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Direct structured API call without code execution (fallback)
+ */
+async function callGeminiAPIDirectStructured(query: string, fileUri?: string, retryCount = 0): Promise<AIChartResponse> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+  
+  try {
+    // Create a prompt that works without code execution
+    const directPrompt = `Analyze the data quality metrics in the uploaded CSV file to answer this query: "${query}"
+
+Please provide a response in the following JSON format:
+{
+  "chartType": "bar" | "line" | "scatter" | "pie" | "table",
+  "title": "Descriptive title for the visualization",
+  "data": [array of data objects with x/y or appropriate fields],
+  "config": {
+    "xAxis": "field name for x-axis",
+    "yAxis": ["array of field names for y-axis"]
+  },
+  "filters": [array of applied filters],
+  "insights": "Key insights and analysis"
+}
+
+Focus on providing meaningful insights based on patterns in the data. For queries about "worst" or "best" datasets, analyze failure rates and trends.`;
+
+    const parts: any[] = [{ text: directPrompt }];
+    
+    if (fileUri) {
+      parts.push({
+        fileData: {
+          mimeType: 'text/csv',
+          fileUri: fileUri
+        }
+      });
+    }
+    
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: parts
+        }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 4096
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data: GeminiResponse = await response.json();
+    
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error('No response candidates from Gemini API');
+    }
+
+    if (!data.candidates[0].content || !data.candidates[0].content.parts) {
+      throw new Error('No content parts in Gemini API response');
+    }
+
+    const responseParts = data.candidates[0].content.parts;
+    const firstPart = responseParts[0];
+    
+    if (!firstPart || !firstPart.text) {
+      throw new Error('No text in Gemini API response');
+    }
+
+    const chartResponse: AIChartResponse = JSON.parse(firstPart.text);
+    
+    // Validate and normalize filters
+    if (!Array.isArray(chartResponse.filters)) {
+      chartResponse.filters = [];
+    } else {
+      chartResponse.filters = chartResponse.filters.map(filter => ({
+        field: filter.field || '',
+        label: filter.label || filter.field || 'Unknown',
+        values: Array.isArray(filter.values) ? filter.values : []
+      }));
+    }
+    
+    // Add note about estimation
+    if (chartResponse.insights && !chartResponse.insights.includes('Note:')) {
+      chartResponse.insights += '\n\nNote: Results based on pattern analysis. For precise calculations, please try a more specific query.';
+    }
+    
+    return chartResponse;
+    
+  } catch (error) {
+    console.error(`Direct Gemini API call failed (attempt ${retryCount + 1}):`, error);
+    
+    if (retryCount < MAX_RETRIES) {
+      // Wait before retrying with jitter
+      const delay = getRetryDelayWithJitter(RETRY_DELAYS[retryCount]);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callGeminiAPIDirectStructured(query, fileUri, retryCount + 1);
     }
     
     throw error;
@@ -609,6 +726,16 @@ async function callGeminiAPI(prompt: string, query: string, fileUri?: string): P
       
       // Validate that it has the required structure
       if (parsedResponse.chartType && parsedResponse.title && parsedResponse.data && parsedResponse.config) {
+        // Validate and normalize filters before returning
+        if (!Array.isArray(parsedResponse.filters)) {
+          parsedResponse.filters = [];
+        } else {
+          parsedResponse.filters = parsedResponse.filters.map(filter => ({
+            field: filter.field || '',
+            label: filter.label || filter.field || 'Unknown',
+            values: Array.isArray(filter.values) ? filter.values : []
+          }));
+        }
         console.log('Step 1 returned valid JSON, skipping Step 2');
         return parsedResponse;
       }
@@ -618,6 +745,24 @@ async function callGeminiAPI(prompt: string, query: string, fileUri?: string): P
     
   } catch (codeExecError: any) {
     console.log('Step 1 encountered an error:', codeExecError);
+    
+    // Check if this is an empty parts error that we should handle with fallback
+    if (isEmptyPartsError(codeExecError)) {
+      console.log('Code execution failed due to empty parts response, falling back to direct structured query');
+      
+      try {
+        // Fallback to direct structured API call without code execution
+        const fallbackResponse = await callGeminiAPIDirectStructured(query, fileUri);
+        console.log('Fallback Gemini API response:', fallbackResponse);
+        console.log('Fallback succeeded, returning response');
+        return fallbackResponse;
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        throw codeExecError; // Throw original error if fallback fails
+      }
+    }
+    
+    // For other errors, continue with the original flow
     throw codeExecError;
   }
   

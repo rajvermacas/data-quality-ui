@@ -264,7 +264,7 @@ export function AIQuerySection({}: AIQuerySectionProps) {
                     key={index}
                     className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded"
                   >
-                    {filter.label}: {filter.values.join(', ')}
+                    {filter.label}: {filter.values ? filter.values.join(', ') : 'None'}
                   </span>
                 ))}
               </div>
