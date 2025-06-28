@@ -71,7 +71,7 @@ export interface AIQueryRequest {
 export interface AIChartResponse {
   chartType: 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'heatmap';
   title: string;
-  data: DataQualityRecord[];
+  data: Record<string, any>[];
   config: {
     xAxis: string;
     yAxis: string[];
@@ -83,10 +83,6 @@ export interface AIChartResponse {
     values: string[];
   }>;
   insights?: string;
-  computation?: {
-    code: string;
-    result: string;
-  };
 }
 
 export interface APIErrorResponse {

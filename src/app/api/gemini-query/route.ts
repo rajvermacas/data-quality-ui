@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AIQueryRequest, AIChartResponse, APIErrorResponse, DataQualityRecord } from '@/types';
+import { AIQueryRequest, AIChartResponse, APIErrorResponse } from '@/types';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const MAX_RETRIES = 3;
@@ -7,14 +7,6 @@ const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
 
 interface GeminiResponsePart {
   text?: string;
-  executableCode?: {
-    language: string;
-    code: string;
-  };
-  codeExecutionResult?: {
-    outcome: string;
-    output: string;
-  };
 }
 
 interface GeminiResponse {
@@ -74,15 +66,21 @@ CRITICAL INSTRUCTIONS:
 1. **Generate ONLY a single, complete JSON object**
 2. **No markdown, no code blocks, no extra text**
 3. **Ensure JSON is properly closed with all brackets/braces**
-4. **Use Python code execution ONLY for calculations when needed**
+4. **Use Python code execution for calculations when needed**
 5. **Keep data array small (max 10 items)**
+6. **Data objects should contain ONLY the fields needed for x-axis and y-axis**
 
 Required JSON format (must be complete and valid):
 
 {
   "chartType": "line|bar|pie|scatter|area|heatmap",
   "title": "Descriptive chart title",
-  "data": [array of data objects],
+  "data": [
+    {
+      "xAxisField": value,
+      "yAxisField": value
+    }
+  ],
   "config": {
     "xAxis": "field_name_for_x_axis",
     "yAxis": ["field_name_for_y_axis"]
@@ -94,11 +92,7 @@ Required JSON format (must be complete and valid):
       "values": ["filter_values"]
     }
   ],
-  "insights": "Brief insights about the data shown",
-  "computation": {
-    "code": "python code if executed",
-    "result": "computation result if performed"
-  }
+  "insights": "Brief insights about the data shown"
 }
 
 Chart Types:
@@ -116,7 +110,10 @@ Available Data Fields (all 27 fields):
 - Failure rates: fail_rate_total, fail_rate_1m, fail_rate_3m, fail_rate_12m
 - Trends: trend_flag (up/down/equal)
 
-IMPORTANT: Generate one complete JSON object. Start with "{" and end with "}". No additional text.`;
+IMPORTANT: 
+- Data array objects should ONLY contain the fields specified in config.xAxis and config.yAxis
+- Do NOT include computation details in the response
+- Generate one complete JSON object. Start with "{" and end with "}". No additional text.`;
 }
 
 /**
@@ -153,7 +150,7 @@ function createClarificationResponse(clarificationText: string): AIChartResponse
   return {
     chartType: 'bar' as const,
     title: 'Additional Information Needed',
-    data: [] as DataQualityRecord[],
+    data: [],
     config: {
       xAxis: 'dataset_name',
       yAxis: ['fail_rate_1m']
@@ -164,38 +161,26 @@ function createClarificationResponse(clarificationText: string): AIChartResponse
 }
 
 /**
- * Extracts computation data from embedded JSON in text response
+ * Extracts JSON from text that might be wrapped in markdown code blocks
  */
-function extractComputationFromEmbeddedJSON(text: string): { computationCode: string; computationResult: string } {
-  let computationCode = '';
-  let computationResult = '';
+function extractJSONFromText(text: string): string {
+  // Check if the text contains markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
   
-  try {
-    // Look for JSON blocks in the text (may be wrapped in ```json```)
-    const jsonMatch = text.match(/```json\s*\n([\s\S]*?)\n```/) || text.match(/(\{[\s\S]*\})/);
-    
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[1];
-      const parsed = JSON.parse(jsonStr);
-      
-      if (parsed.computation) {
-        computationCode = parsed.computation.code || '';
-        computationResult = parsed.computation.result || '';
-        console.log('Extracted computation from embedded JSON:', { computationCode, computationResult });
-      }
-    }
-  } catch (parseError) {
-    console.log('Failed to extract computation from embedded JSON:', parseError);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
   }
   
-  return { computationCode, computationResult };
+  // If no code blocks, return the text as is
+  return text.trim();
 }
+
 
 /**
  * Makes API call to Gemini with code execution capabilities
- * Returns the raw response text and computation details
+ * Returns the raw response text
  */
-async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): Promise<{ rawResponseText: string; computationCode: string; computationResult: string }> {
+async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
@@ -243,8 +228,6 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
     
     // Process all response parts
     let responseText = '';
-    let computationCode = '';
-    let computationResult = '';
     
     // Ensure parts is an array (sometimes API returns a single object)
     const partsArray = Array.isArray(parts) ? parts : [parts];
@@ -253,30 +236,10 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
       if (part.text) {
         responseText += part.text;
       }
-      // Check for computation data in separate parts (legacy format)
-      if (part.executableCode) {
-        computationCode = part.executableCode.code;
-        console.log('Generated code from separate part:', computationCode);
-      }
-      if (part.codeExecutionResult) {
-        computationResult = part.codeExecutionResult.output;
-        console.log('Code execution result from separate part:', computationResult);
-      }
     }
     
-    // If computation data wasn't found in separate parts, try to extract from embedded JSON
-    if (!computationCode && !computationResult && responseText) {
-      const extracted = extractComputationFromEmbeddedJSON(responseText);
-      computationCode = extracted.computationCode;
-      computationResult = extracted.computationResult;
-    }
-    
-    // Return raw response without parsing
-    return {
-      rawResponseText: responseText,
-      computationCode,
-      computationResult
-    };
+    // Return raw response text
+    return responseText;
     
   } catch (error) {
     console.error(`Gemini API call failed (attempt ${retryCount + 1}):`, error);
@@ -333,36 +296,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
               data: {
                 type: "array",
                 items: {
-                  type: "object",
-                  properties: {
-                    source: { type: "string" },
-                    tenant_id: { type: "string" },
-                    dataset_uuid: { type: "string" },
-                    dataset_name: { type: "string" },
-                    rule_code: { type: "string" },
-                    rule_name: { type: "string" },
-                    rule_type: { type: "string" },
-                    dimension: { type: "string" },
-                    rule_description: { type: "string" },
-                    category: { type: "string" },
-                    business_date_latest: { type: "string" },
-                    dataset_record_count_latest: { type: "number" },
-                    filtered_record_count_latest: { type: "number" },
-                    pass_count_total: { type: "number" },
-                    fail_count_total: { type: "number" },
-                    pass_count_1m: { type: "number" },
-                    fail_count_1m: { type: "number" },
-                    pass_count_3m: { type: "number" },
-                    fail_count_3m: { type: "number" },
-                    pass_count_12m: { type: "number" },
-                    fail_count_12m: { type: "number" },
-                    fail_rate_total: { type: "number" },
-                    fail_rate_1m: { type: "number" },
-                    fail_rate_3m: { type: "number" },
-                    fail_rate_12m: { type: "number" },
-                    trend_flag: { type: "string", enum: ["up", "down", "equal"] },
-                    last_execution_level: { type: "string" }
-                  }
+                  type: "object"
                 }
               },
               config: {
@@ -491,33 +425,35 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
  */
 async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResponse> {
   console.log('Starting two-step Gemini API call for query:', query);
-  // console.log('Prompt sent to Gemini:', prompt);
-  // console.log('Original user query:', query);
   
   let rawResponseText = '';
-  let computationCode = '';
-  let computationResult = '';
   
   try {
     // Step 1: Get raw response with code execution
     console.log('Step 1: Using code execution for analysis');
-    const codeExecResponse = await callGeminiAPIWithCodeExecution(prompt);
+    rawResponseText = await callGeminiAPIWithCodeExecution(prompt);
     
-    // Extract the data from the response
-    rawResponseText = codeExecResponse.rawResponseText;
-    computationCode = codeExecResponse.computationCode;
-    computationResult = codeExecResponse.computationResult;
-
-    console.log('Raw Gemini code execution response:', {
-      rawResponseText,
-      computationCode,
-      computationResult
-    });
+    console.log('Raw Gemini code execution response:', rawResponseText);
     
     // Check if the response is asking for clarification
-    if (!computationCode && !computationResult && isAskingForClarification(rawResponseText)) {
+    if (isAskingForClarification(rawResponseText)) {
       console.log('Detected clarifying question, skipping Step 2 to preserve clarification');
       return createClarificationResponse(rawResponseText);
+    }
+    
+    // Try to parse the response as JSON first
+    try {
+      // Extract JSON from potential markdown code blocks
+      const cleanedResponse = extractJSONFromText(rawResponseText);
+      const parsedResponse: AIChartResponse = JSON.parse(cleanedResponse);
+      
+      // Validate that it has the required structure
+      if (parsedResponse.chartType && parsedResponse.title && parsedResponse.data && parsedResponse.config) {
+        console.log('Step 1 returned valid JSON, skipping Step 2');
+        return parsedResponse;
+      }
+    } catch (parseError) {
+      console.log('Step 1 response is not valid JSON, proceeding to Step 2');
     }
     
   } catch (codeExecError: any) {
@@ -526,38 +462,27 @@ async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResp
   }
   
   try {
-    // Step 2: Always pass the output to structured output for cleaning/formatting
+    // Step 2: Only use structured output if Step 1 didn't return valid JSON
     console.log('Step 2: Using structured output to format the response');
     
-    // TODO: rawResponseText already contains computationCode, computationResult. We can free up context by removing explicit inclusion of computationCode and computationResult
     // Create a prompt for structured output that includes the code execution results
     const structuredPrompt = `Format this data analysis result into a proper chart response.
 
 Original Query: "${query}"
-Code Execution Output: ${rawResponseText}
-${computationCode ? `\nComputation Code: ${computationCode}` : ''}
-${computationResult ? `\nComputation Result: ${computationResult}` : ''}
+Analysis Result: ${rawResponseText}
 
 Create a complete chart response with:
 1. Appropriate chart type based on the analysis
-2. Clean, formatted data array (limit to 10 items max)
+2. Clean, formatted data array (limit to 10 items max, with ONLY x-axis and y-axis fields)
 3. Proper axis configuration
 4. Any relevant filters
 5. Insights from the analysis
 
-The response should analyze datasets with high failure rates as requested.
-
-IMPORTANT: Generate ONLY valid JSON, no markdown or extra text.`;
+IMPORTANT: 
+- Data objects should contain ONLY the fields needed for visualization (x-axis and y-axis)
+- Generate ONLY valid JSON, no markdown or extra text`;
 
     const structuredResponse = await callGeminiAPIWithStructuredOutput(structuredPrompt);
-    
-    // Add computation details if they exist
-    if (computationCode || computationResult) {
-      structuredResponse.computation = {
-        code: computationCode,
-        result: computationResult
-      };
-    }
     
     console.log('Two-step process successful!');
     return structuredResponse;
@@ -575,7 +500,7 @@ IMPORTANT: Generate ONLY valid JSON, no markdown or extra text.`;
         return {
           chartType: 'bar' as const,
           title: 'Service Configuration Error',
-          data: [] as DataQualityRecord[],
+          data: [],
           config: {
             xAxis: 'dataset_name',
             yAxis: ['fail_rate_1m']
@@ -590,7 +515,7 @@ IMPORTANT: Generate ONLY valid JSON, no markdown or extra text.`;
     return {
       chartType: 'bar' as const,
       title: 'Query Processing Error',
-      data: [] as DataQualityRecord[],
+      data: [],
       config: {
         xAxis: 'dataset_name',
         yAxis: ['fail_rate_1m']
