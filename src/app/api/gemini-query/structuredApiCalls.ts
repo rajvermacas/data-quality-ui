@@ -101,10 +101,10 @@ export async function callGeminiAPIWithStructuredOutput(
           parts: parts
         }],
         generationConfig: {
-          temperature: 0.1,
+          temperature: 0.5,
           topK: 1,
           topP: 1,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 4096,
           responseMimeType: "application/json",
           responseSchema: RESPONSE_SCHEMA,
           thinkingConfig: {
@@ -230,7 +230,7 @@ Focus on providing meaningful insights based on patterns in the data. For querie
         }],
         generationConfig: {
           responseMimeType: 'application/json',
-          temperature: 0.1,
+          temperature: 0.8,
           topK: 1,
           topP: 1,
           maxOutputTokens: 4096

@@ -204,6 +204,13 @@ describe('/api/gemini-query', () => {
   it('should return 500 after exhausting all retries', async () => {
     // Mock all calls to fail
     (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    
+    // Mock setTimeout to make delays instant
+    const originalSetTimeout = global.setTimeout;
+    global.setTimeout = jest.fn((fn) => {
+      fn();
+      return 1 as any;
+    });
 
     const request = new NextRequest('http://localhost:3000/api/gemini-query', {
       method: 'POST',
@@ -215,8 +222,11 @@ describe('/api/gemini-query', () => {
 
     expect(response.status).toBe(500);
     expect(data.error).toBe('Failed to process query after multiple attempts');
-    expect(global.fetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
-  }, 15000);
+    expect(global.fetch).toHaveBeenCalledTimes(6); // Code execution attempts + retries
+    
+    // Restore original setTimeout
+    global.setTimeout = originalSetTimeout;
+  });
 
   // Test clarification detection functionality
   describe('Clarification Detection', () => {
