@@ -282,11 +282,40 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
 
     const data: GeminiResponse = await response.json();
     
+    // Debug log raw response for problematic queries
+    if (prompt.toLowerCase().includes('worst dataset')) {
+      console.log('Debug: Raw Gemini response for "worst dataset" query:', JSON.stringify(data, null, 2));
+    }
+    
     if (!data.candidates || data.candidates.length === 0) {
+      console.error('Invalid Gemini response structure:', JSON.stringify(data, null, 2));
       throw new Error('No response candidates from Gemini API');
     }
 
+    // Add safety check for content
+    if (!data.candidates[0].content) {
+      console.error('No content in first candidate:', JSON.stringify(data.candidates[0], null, 2));
+      throw new Error('No content in Gemini API response candidate');
+    }
+
     const responseParts = data.candidates[0].content.parts;
+    
+    // Validate that parts exist
+    if (!responseParts) {
+      throw new Error('No content parts in Gemini API response');
+    }
+    
+    // Debug log the response structure for problematic queries
+    if (prompt.toLowerCase().includes('worst dataset')) {
+      console.log('Debug: Response structure for "worst dataset" query:', {
+        hasContent: !!data.candidates[0].content,
+        hasParts: !!responseParts,
+        partsType: typeof responseParts,
+        isArray: Array.isArray(responseParts),
+        partsLength: Array.isArray(responseParts) ? responseParts.length : 'N/A',
+        firstPart: responseParts[0] || 'undefined'
+      });
+    }
     
     // Process all response parts
     let responseText = '';
@@ -294,10 +323,28 @@ async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, 
     // Ensure parts is an array (sometimes API returns a single object)
     const partsArray = Array.isArray(responseParts) ? responseParts : [responseParts];
     
+    // Check if parts array is empty
+    if (partsArray.length === 0) {
+      throw new Error('Empty parts array in Gemini API response');
+    }
+    
     for (const part of partsArray) {
-      if (part.text) {
+      // More defensive checks
+      if (part && typeof part === 'object' && 'text' in part) {
         responseText += part.text;
+      } else if (prompt.toLowerCase().includes('worst dataset')) {
+        console.log('Debug: Invalid part structure:', { 
+          part, 
+          type: typeof part,
+          hasText: part ? 'text' in part : 'part is null/undefined'
+        });
       }
+    }
+    
+    // Ensure we got some text
+    if (!responseText) {
+      console.error('No text found in any parts. Parts structure:', JSON.stringify(partsArray, null, 2));
+      throw new Error('No text content found in Gemini API response parts');
     }
     
     // Return raw response text
@@ -423,20 +470,57 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, fileUri?: strin
     const data: GeminiResponse = await response.json();
     
     if (!data.candidates || data.candidates.length === 0) {
+      console.error('Invalid Gemini response structure:', JSON.stringify(data, null, 2));
       throw new Error('No response candidates from Gemini API');
     }
 
     // For structured output, response should be clean JSON
     const structuredParts = data.candidates[0].content.parts;
     
+    // Validate that parts exist
+    if (!structuredParts) {
+      throw new Error('No content parts in Gemini API structured response');
+    }
+    
+    // Debug log for problematic queries
+    if (prompt.toLowerCase().includes('worst dataset')) {
+      console.log('Debug: Structured response for "worst dataset" query:', {
+        hasContent: !!data.candidates[0].content,
+        hasParts: !!structuredParts,
+        partsType: typeof structuredParts,
+        isArray: Array.isArray(structuredParts),
+        partsLength: Array.isArray(structuredParts) ? structuredParts.length : 'N/A',
+        firstPart: structuredParts[0] || 'undefined'
+      });
+    }
+    
     // Ensure parts is an array (sometimes API returns a single object)
     const structuredPartsArray = Array.isArray(structuredParts) ? structuredParts : [structuredParts];
-    const responseText = structuredPartsArray[0]?.text;
+    
+    // Check if parts array is empty
+    if (structuredPartsArray.length === 0) {
+      throw new Error('Empty parts array in Gemini API structured response');
+    }
+    
+    // Safely access the first part's text
+    const firstPart = structuredPartsArray[0];
+    if (!firstPart || typeof firstPart !== 'object') {
+      throw new Error('Invalid part structure in Gemini API response');
+    }
+    
+    // Check if text property exists before accessing it
+    if (!firstPart.hasOwnProperty('text')) {
+      console.error('Part structure missing text property:', JSON.stringify(firstPart, null, 2));
+      throw new Error('No text property in Gemini API response part');
+    }
+    
+    const responseText = firstPart.text;
 
     console.log('Gemini structured output responseText:', responseText);
     
     if (!responseText) {
-      throw new Error('No text response from Gemini API');
+      console.error('First part structure:', JSON.stringify(firstPart, null, 2));
+      throw new Error('No text property in Gemini API response part');
     }
     
     try {
@@ -654,6 +738,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<AIChartRe
       if (error.message.includes('Failed to parse')) {
         return NextResponse.json(
           { error: 'Invalid response from AI service' },
+          { status: 502 }
+        );
+      }
+      
+      // Handle specific Gemini response structure errors
+      if (error.message.includes('No content parts') || 
+          error.message.includes('Empty parts array') ||
+          error.message.includes('No text property') ||
+          error.message.includes('No text content found')) {
+        return NextResponse.json(
+          { error: 'Gemini API returned an invalid response structure. Please try again.' },
           { status: 502 }
         );
       }
