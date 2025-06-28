@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, KeyboardEvent } from 'react';
-import { DataQualityRecord, AIChartResponse } from '@/types';
+import { AIChartResponse } from '@/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 interface AIQuerySectionProps {
-  data: DataQualityRecord[];
+  // data prop removed - CSV file is now uploaded directly on the server
 }
 
 interface QueryState {
@@ -25,7 +25,7 @@ const EXAMPLE_QUERIES = [
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1'];
 
-export function AIQuerySection({ data }: AIQuerySectionProps) {
+export function AIQuerySection({}: AIQuerySectionProps) {
   const [state, setState] = useState<QueryState>({
     query: '',
     loading: false,
@@ -49,17 +49,13 @@ export function AIQuerySection({ data }: AIQuerySectionProps) {
     }));
 
     try {
-      // Prepare data context with all available fields
-      const dataContext = data;
-
       const response = await fetch('/api/gemini-query', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: state.query,
-          dataContext
+          query: state.query
         }),
       });
 

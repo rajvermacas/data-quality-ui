@@ -119,7 +119,7 @@ export function Dashboard() {
           <UrgentAttentionWidget items={state.urgentItems} />
 
           {/* AI Query Section */}
-          <AIQuerySection data={state.data} />
+          <AIQuerySection />
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Filter Panel */}

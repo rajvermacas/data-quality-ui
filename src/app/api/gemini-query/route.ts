@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIQueryRequest, AIChartResponse, APIErrorResponse } from '@/types';
+import { GoogleAIFileManager } from '@google/generative-ai/server';
+import path from 'path';
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff delays in ms
+
+// File upload cache - store uploaded file URI for reuse
+let cachedFileUri: string | null = null;
+let cachedFileExpiresAt: Date | null = null;
 
 interface GeminiResponsePart {
   text?: string;
@@ -45,22 +51,67 @@ function validateQuery(query: string): { isValid: boolean; error?: string } {
 }
 
 /**
+ * Uploads the CSV file to Gemini and returns the file URI
+ * Uses caching to avoid re-uploading the same file
+ */
+async function uploadCSVToGemini(): Promise<string> {
+  // Check if we have a cached file URI that hasn't expired
+  if (cachedFileUri && cachedFileExpiresAt && new Date() < cachedFileExpiresAt) {
+    console.log('Using cached file URI:', cachedFileUri);
+    return cachedFileUri;
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  try {
+    const fileManager = new GoogleAIFileManager(apiKey);
+    
+    // Get the path to the CSV file
+    const csvPath = path.join(process.cwd(), 'resources', 'artifacts', 'full_summary.csv');
+    console.log('Uploading CSV file from:', csvPath);
+    
+    // Upload the file
+    const uploadResult = await fileManager.uploadFile(csvPath, {
+      mimeType: 'text/csv',
+      displayName: 'Data Quality Summary'
+    });
+    
+    console.log('File uploaded successfully:', {
+      uri: uploadResult.file.uri,
+      displayName: uploadResult.file.displayName,
+      mimeType: uploadResult.file.mimeType,
+      sizeBytes: uploadResult.file.sizeBytes
+    });
+    
+    // Cache the file URI (files expire after 48 hours)
+    cachedFileUri = uploadResult.file.uri;
+    cachedFileExpiresAt = new Date(Date.now() + 47 * 60 * 60 * 1000); // 47 hours
+    
+    return uploadResult.file.uri;
+  } catch (error) {
+    console.error('Failed to upload CSV file:', error);
+    throw new Error('Failed to upload data file to AI service');
+  }
+}
+
+/**
  * Creates the prompt for Gemini API with structured output requirements
  */
-function createGeminiPrompt(query: string, dataContext?: any[]): string {
-  console.log('Data context received:', dataContext ? `${dataContext.length} records` : 'No data');
-  if (dataContext && Array.isArray(dataContext) && dataContext.length > 0) {
-    console.log('First row of dataContext (ALL FIELDS):', dataContext[0]);
-  }
+function createGeminiPrompt(query: string, fileUri?: string): string {
+  console.log('Creating prompt with file URI:', fileUri);
   
-  // Use all available data context without truncation
-  const fullContext = dataContext || [];
-  const contextData = JSON.stringify(fullContext);
+  // If we have a file URI, reference it; otherwise fall back to text
+  const dataReference = fileUri 
+    ? `The data is provided in the uploaded CSV file. Please analyze the complete dataset from the file.`
+    : `No data file available. Please provide guidance on what data would be needed.`;
   
   return `You are a data visualization expert. Analyze the user query and data to create a chart response.
 
 User Query: "${query}"
-Data Context (${fullContext.length} complete records with all fields): ${contextData}
+Data Context: ${dataReference}
 
 CRITICAL INSTRUCTIONS:
 1. **Generate ONLY a single, complete JSON object**
@@ -136,7 +187,8 @@ function isAskingForClarification(text: string): boolean {
     'need to ask',
     'more details',
     'which one',
-    'be more specific'
+    'be more specific',
+    'please provide'
   ];
   
   const lowerText = text.toLowerCase();
@@ -180,7 +232,7 @@ function extractJSONFromText(text: string): string {
  * Makes API call to Gemini with code execution capabilities
  * Returns the raw response text
  */
-async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): Promise<string> {
+async function callGeminiAPIWithCodeExecution(prompt: string, fileUri?: string, retryCount = 0): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   
   if (!apiKey) {
@@ -188,6 +240,18 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
   }
 
   try {
+    // Build the parts array with text and optional file
+    const parts: any[] = [{ text: prompt }];
+    
+    if (fileUri) {
+      parts.push({
+        fileData: {
+          mimeType: 'text/csv',
+          fileUri: fileUri
+        }
+      });
+    }
+    
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -195,9 +259,7 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{
-            text: prompt
-          }]
+          parts: parts
         }],
         tools: [{
           codeExecution: {}
@@ -224,13 +286,13 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
       throw new Error('No response candidates from Gemini API');
     }
 
-    const parts = data.candidates[0].content.parts;
+    const responseParts = data.candidates[0].content.parts;
     
     // Process all response parts
     let responseText = '';
     
     // Ensure parts is an array (sometimes API returns a single object)
-    const partsArray = Array.isArray(parts) ? parts : [parts];
+    const partsArray = Array.isArray(responseParts) ? responseParts : [responseParts];
     
     for (const part of partsArray) {
       if (part.text) {
@@ -247,7 +309,7 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
     if (retryCount < MAX_RETRIES) {
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-      return callGeminiAPIWithCodeExecution(prompt, retryCount + 1);
+      return callGeminiAPIWithCodeExecution(prompt, fileUri, retryCount + 1);
     }
     
     throw error;
@@ -257,7 +319,7 @@ async function callGeminiAPIWithCodeExecution(prompt: string, retryCount = 0): P
 /**
  * Makes API call to Gemini with structured output (guaranteed JSON)
  */
-async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0): Promise<AIChartResponse> {
+async function callGeminiAPIWithStructuredOutput(prompt: string, fileUri?: string, retryCount = 0): Promise<AIChartResponse> {
   const apiKey = process.env.GEMINI_API_KEY;
   // console.log('Structured output prompt:', prompt, 'Retry count:', retryCount);
   
@@ -266,6 +328,18 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
   }
 
   try {
+    // Build the parts array with text and optional file
+    const parts: any[] = [{ text: prompt }];
+    
+    if (fileUri) {
+      parts.push({
+        fileData: {
+          mimeType: 'text/csv',
+          fileUri: fileUri
+        }
+      });
+    }
+    
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -273,9 +347,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{
-            text: prompt
-          }]
+          parts: parts
         }],
         generationConfig: {
           temperature: 0.1,
@@ -355,11 +427,11 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
     }
 
     // For structured output, response should be clean JSON
-    const parts = data.candidates[0].content.parts;
+    const structuredParts = data.candidates[0].content.parts;
     
     // Ensure parts is an array (sometimes API returns a single object)
-    const partsArray = Array.isArray(parts) ? parts : [parts];
-    const responseText = partsArray[0]?.text;
+    const structuredPartsArray = Array.isArray(structuredParts) ? structuredParts : [structuredParts];
+    const responseText = structuredPartsArray[0]?.text;
 
     console.log('Gemini structured output responseText:', responseText);
     
@@ -417,7 +489,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
     if (retryCount < MAX_RETRIES) {
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-      return callGeminiAPIWithStructuredOutput(prompt, retryCount + 1);
+      return callGeminiAPIWithStructuredOutput(prompt, fileUri, retryCount + 1);
     }
     
     throw error;
@@ -427,7 +499,7 @@ async function callGeminiAPIWithStructuredOutput(prompt: string, retryCount = 0)
 /**
  * Two-step API call: code execution + structured output
  */
-async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResponse> {
+async function callGeminiAPI(prompt: string, query: string, fileUri?: string): Promise<AIChartResponse> {
   console.log('Starting two-step Gemini API call for query:', query);
   
   let rawResponseText = '';
@@ -435,7 +507,7 @@ async function callGeminiAPI(prompt: string, query: string): Promise<AIChartResp
   try {
     // Step 1: Get raw response with code execution
     console.log('Step 1: Using code execution for analysis');
-    rawResponseText = await callGeminiAPIWithCodeExecution(prompt);
+    rawResponseText = await callGeminiAPIWithCodeExecution(prompt, fileUri);
     
     console.log('Raw Gemini code execution response:', rawResponseText);
     
@@ -491,7 +563,7 @@ CRITICAL for data array:
 
 Generate ONLY valid JSON, no markdown or extra text`;
 
-    const structuredResponse = await callGeminiAPIWithStructuredOutput(structuredPrompt);
+    const structuredResponse = await callGeminiAPIWithStructuredOutput(structuredPrompt, fileUri);
     
     console.log('Two-step process successful!');
     return structuredResponse;
@@ -551,11 +623,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<AIChartRe
     // Sanitize query
     const sanitizedQuery = sanitizeQuery(body.query);
     
+    // Upload CSV file to Gemini (or use cached URI)
+    let fileUri: string | undefined;
+    try {
+      fileUri = await uploadCSVToGemini();
+    } catch (uploadError) {
+      console.error('Failed to upload CSV file, proceeding without file:', uploadError);
+      // Continue without file - the prompt will handle this gracefully
+    }
+    
     // Create prompt for Gemini
-    const prompt = createGeminiPrompt(sanitizedQuery, body.dataContext);
+    const prompt = createGeminiPrompt(sanitizedQuery, fileUri);
     
     // Call Gemini API with smart routing
-    const chartResponse = await callGeminiAPI(prompt, sanitizedQuery);
+    const chartResponse = await callGeminiAPI(prompt, sanitizedQuery, fileUri);
     
     return NextResponse.json(chartResponse);
     

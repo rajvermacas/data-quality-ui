@@ -2,11 +2,13 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AIQuerySection } from '@/components/features/AIQuerySection';
-import { DataQualityRecord } from '@/types';
 
 // Mock fetch
 global.fetch = jest.fn();
 
+// mockData removed - AIQuerySection no longer needs data prop
+// CSV file is now uploaded directly on the server
+/*
 const mockData: DataQualityRecord[] = [
   {
     source: 'DataLake',
@@ -38,6 +40,7 @@ const mockData: DataQualityRecord[] = [
     last_execution_level: 'SUCCESS'
   }
 ];
+*/
 
 describe('AIQuerySection', () => {
   beforeEach(() => {
@@ -45,7 +48,7 @@ describe('AIQuerySection', () => {
   });
 
   it('renders the AI query interface', () => {
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     expect(screen.getByText('AI Query Assistant')).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Ask a question about your data/)).toBeInTheDocument();
@@ -53,7 +56,7 @@ describe('AIQuerySection', () => {
   });
 
   it('displays example queries', () => {
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     expect(screen.getByText(/Show me datasets with high failure rates/)).toBeInTheDocument();
     expect(screen.getByText(/What's the trend for dataset XYZ?/)).toBeInTheDocument();
@@ -62,7 +65,7 @@ describe('AIQuerySection', () => {
 
   it('validates query length', async () => {
     const user = userEvent.setup();
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     const longQuery = 'a'.repeat(501);
@@ -92,7 +95,7 @@ describe('AIQuerySection', () => {
       }), 100))
     );
 
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     await user.type(input, 'Show me datasets');
@@ -123,7 +126,7 @@ describe('AIQuerySection', () => {
       json: async () => mockResponse
     });
 
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     await user.type(input, 'Show me datasets with high failure rates');
@@ -141,7 +144,7 @@ describe('AIQuerySection', () => {
     
     (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     await user.type(input, 'Show me datasets');
@@ -154,7 +157,7 @@ describe('AIQuerySection', () => {
 
   it('allows clicking example queries to populate input', async () => {
     const user = userEvent.setup();
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const exampleQuery = screen.getByText('Show me datasets with high failure rates');
     await user.click(exampleQuery);
@@ -179,7 +182,7 @@ describe('AIQuerySection', () => {
       })
     });
 
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     await user.type(input, 'First query');
@@ -228,7 +231,7 @@ describe('AIQuerySection', () => {
       })
     });
 
-    render(<AIQuerySection data={mockData} />);
+    render(<AIQuerySection />);
     
     const input = screen.getByPlaceholderText(/Ask a question about your data/);
     await user.type(input, 'Test query{enter}');
