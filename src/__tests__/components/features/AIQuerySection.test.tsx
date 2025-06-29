@@ -6,6 +6,19 @@ import { AIQuerySection } from '@/components/features/AIQuerySection';
 // Mock fetch
 global.fetch = jest.fn();
 
+// Mock the IssueCreationModal component
+jest.mock('@/components/features/IssueCreationModal', () => ({
+  IssueCreationModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+    if (!isOpen) return null;
+    return (
+      <div data-testid="issue-creation-modal">
+        <h2>Create GitLab Issue</h2>
+        <button onClick={onClose}>Close Modal</button>
+      </div>
+    );
+  }
+}));
+
 // mockData removed - AIQuerySection no longer needs data prop
 // CSV file is now uploaded directly on the server
 /*
@@ -239,5 +252,55 @@ describe('AIQuerySection', () => {
     await waitFor(() => {
       expect(screen.getByText('Keyboard Test')).toBeInTheDocument();
     });
+  });
+
+  it('renders the Create Issue button', () => {
+    render(<AIQuerySection />);
+    
+    const createIssueButton = screen.getByRole('button', { name: /create issue/i });
+    expect(createIssueButton).toBeInTheDocument();
+    expect(createIssueButton).toHaveClass('bg-green-600');
+  });
+
+  it('opens the issue creation modal when Create Issue button is clicked', async () => {
+    const user = userEvent.setup();
+    render(<AIQuerySection />);
+    
+    const createIssueButton = screen.getByRole('button', { name: /create issue/i });
+    await user.click(createIssueButton);
+    
+    expect(screen.getByTestId('issue-creation-modal')).toBeInTheDocument();
+    expect(screen.getByText('Create GitLab Issue')).toBeInTheDocument();
+  });
+
+  it('closes the issue creation modal when close is triggered', async () => {
+    const user = userEvent.setup();
+    render(<AIQuerySection />);
+    
+    // Open modal
+    const createIssueButton = screen.getByRole('button', { name: /create issue/i });
+    await user.click(createIssueButton);
+    
+    expect(screen.getByTestId('issue-creation-modal')).toBeInTheDocument();
+    
+    // Close modal
+    const closeButton = screen.getByText('Close Modal');
+    await user.click(closeButton);
+    
+    expect(screen.queryByTestId('issue-creation-modal')).not.toBeInTheDocument();
+  });
+
+  it('shows Create Issue button alongside Ask AI button', () => {
+    render(<AIQuerySection />);
+    
+    const askAIButton = screen.getByRole('button', { name: /ask ai/i });
+    const createIssueButton = screen.getByRole('button', { name: /create issue/i });
+    
+    expect(askAIButton).toBeInTheDocument();
+    expect(createIssueButton).toBeInTheDocument();
+    
+    // Check they are in the same container
+    const buttonContainer = askAIButton.parentElement;
+    expect(buttonContainer).toContainElement(createIssueButton);
   });
 });

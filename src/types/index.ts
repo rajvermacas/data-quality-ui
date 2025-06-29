@@ -90,3 +90,21 @@ export interface APIErrorResponse {
   code?: string;
   retryAfter?: number;
 }
+
+export interface N8nWebhookRequest {
+  message: string;
+}
+
+export interface N8nWebhookResponse {
+  workflowStatus: string;
+  issueWebUrl: string;
+}
+
+export interface IssueCreationState {
+  isOpen: boolean;
+  message: string;
+  loading: boolean;
+  error: string | null;
+  success: boolean;
+  issueUrl: string | null;
+}

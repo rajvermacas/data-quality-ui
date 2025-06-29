@@ -3,6 +3,7 @@
 import { useState, KeyboardEvent } from 'react';
 import { AIChartResponse } from '@/types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { IssueCreationModal } from './IssueCreationModal';
 
 interface AIQuerySectionProps {
   // data prop removed - CSV file is now uploaded directly on the server
@@ -32,6 +33,7 @@ export function AIQuerySection({}: AIQuerySectionProps) {
     result: null,
     error: null
   });
+  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
 
   const handleQuerySubmit = async () => {
     if (!state.query.trim()) return;
@@ -282,6 +284,15 @@ export function AIQuerySection({}: AIQuerySectionProps) {
           >
             {state.loading ? 'Processing...' : 'Ask AI'}
           </button>
+          <button
+            onClick={() => setIsIssueModalOpen(true)}
+            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Create Issue
+          </button>
         </div>
         
         {state.error && (
@@ -357,6 +368,12 @@ export function AIQuerySection({}: AIQuerySectionProps) {
           )}
         </div>
       )}
+
+      {/* Issue Creation Modal */}
+      <IssueCreationModal 
+        isOpen={isIssueModalOpen}
+        onClose={() => setIsIssueModalOpen(false)}
+      />
     </div>
   );
 }
