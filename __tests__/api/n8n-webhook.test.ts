@@ -46,7 +46,7 @@ describe('/api/n8n-webhook', () => {
     expect(response.status).toBe(200);
     expect(data).toEqual(mockResponse);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://aibard.app.n8n.cloud/webhook-test/data-quality',
+      'https://aibard.app.n8n.cloud/webhook/data-quality',
       expect.objectContaining({
         method: 'POST',
         headers: {

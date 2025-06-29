@@ -9,7 +9,7 @@ It is the url of an n8n.io workflow where I have already created the workflow. I
 5. returns the response saying workflow is completed and here is the gitlab url for the issue.
 
 Below is the curl command:
-curl -X POST https://aibard.app.n8n.cloud/webhook-test/data-quality \
+curl -X POST https://aibard.app.n8n.cloud/webhook/data-quality \
     -H "Content-Type: application/json" \
     -d '{
       "message": "There is an increase in the HR system failure rate percentage by 34%. Assign it to aibardchatgpt17@gmail.com"

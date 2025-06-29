@@ -9,7 +9,7 @@ interface N8nWebhookResponse {
   issueWebUrl: string;
 }
 
-const N8N_WEBHOOK_URL = 'https://aibard.app.n8n.cloud/webhook-test/data-quality';
+const N8N_WEBHOOK_URL = 'https://aibard.app.n8n.cloud/webhook/data-quality';
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
 export async function POST(request: NextRequest) {
