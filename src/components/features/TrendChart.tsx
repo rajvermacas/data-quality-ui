@@ -4,6 +4,62 @@ import { DataQualityRecord } from '@/types';
 import { filterData } from '@/lib/dataProcessor';
 import { ChartContainer } from '@/components/ui/ChartContainer';
 
+// Utility function to create shorter, cleaner system names
+function createShortSystemName(source: string): string {
+  // Remove common suffixes and prefixes
+  let cleaned = source
+    .replace(/_SYSTEM$/, '')
+    .replace(/_SERVICE$/, '')
+    .replace(/^PROD_/, '')
+    .replace(/^DEV_/, '')
+    .replace(/^TEST_/, '');
+  
+  // Convert to title case and handle common abbreviations
+  const words = cleaned.split('_');
+  const titleCase = words.map(word => {
+    // Keep common abbreviations uppercase
+    if (['HR', 'ERP', 'CRM', 'WMS', 'QMS'].includes(word)) {
+      return word;
+    }
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+  
+  // Truncate if still too long
+  return titleCase.length > 15 ? titleCase.substring(0, 15) + '...' : titleCase;
+}
+
+// Custom Legend component with two-column layout
+interface CustomLegendProps {
+  datasets: Array<{ dataset: string }>;
+  colors: string[];
+}
+
+function CustomLegend({ datasets, colors }: CustomLegendProps) {
+  return (
+    <div className="mt-1 px-4">
+      <div 
+        className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs"
+        style={{ gridAutoFlow: 'column', gridTemplateRows: 'repeat(5, 1fr)' }}
+      >
+        {datasets.map((dataset, index) => {
+          const color = colors[index % colors.length];
+          return (
+            <div key={dataset.dataset} className="flex items-center space-x-3 hover:bg-gray-50 p-1 rounded transition-colors">
+              <div 
+                className="w-4 h-0.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-gray-700 truncate font-medium" title={dataset.dataset}>
+                {dataset.dataset}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface TrendChartProps {
   data: DataQualityRecord[];
   filters: Record<string, string[]>;
@@ -11,12 +67,19 @@ interface TrendChartProps {
 }
 
 export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
+  // Define colors array to be shared between chart and legend
+  const colors = [
+    '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+  ];
+
   const chartData = useMemo(() => {
     const filteredData = filterData(data, filters);
     
     // Aggregate data by dataset for trend comparison
     const aggregated = filteredData.reduce((acc, record) => {
-      const key = `${record.dataset_name} (${record.source})`;
+      const shortSystemName = createShortSystemName(record.source);
+      const key = `${record.dataset_name} (${shortSystemName})`;
       if (!acc[key]) {
         acc[key] = {
           dataset: key,
@@ -120,7 +183,7 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
         <>
           <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+              <LineChart data={chartData.timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="period" 
@@ -143,12 +206,7 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
                   formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
                   labelStyle={{ fontSize: 12 }}
                 />
-                <Legend />
                 {chartData.datasets.map((dataset, index) => {
-                  const colors = [
-                    '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
-                    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
-                  ];
                   const color = colors[index % colors.length];
                   
                   return (
@@ -165,6 +223,7 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <CustomLegend datasets={chartData.datasets} colors={colors} />
           <div className="mt-4 text-xs text-gray-500">
             Showing {chartData.datasets.length} datasets. Use filters to refine the view.
           </div>

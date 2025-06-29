@@ -2,6 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { TrendChart } from '@/components/features/TrendChart';
 import { DataQualityRecord } from '@/types';
 
+// Test the utility function by importing it (we'll need to export it)
+// For now, we'll test the behavior through the component integration
+
 // Mock the dataProcessor functions
 jest.mock('@/lib/dataProcessor', () => ({
   filterData: jest.fn((data, filters) => {
@@ -17,7 +20,7 @@ jest.mock('@/lib/dataProcessor', () => ({
 
 const mockData: DataQualityRecord[] = [
   {
-    source: 'SYSTEM_A',
+    source: 'FINANCE_SYSTEM',
     tenant_id: 'tenant_001',
     dataset_uuid: 'ds001',
     dataset_name: 'Dataset A',
@@ -46,7 +49,7 @@ const mockData: DataQualityRecord[] = [
     last_execution_level: 'DATASET'
   },
   {
-    source: 'SYSTEM_B',
+    source: 'PROCUREMENT_SYSTEM',
     tenant_id: 'tenant_002',
     dataset_uuid: 'ds002',
     dataset_name: 'Dataset B',
@@ -107,7 +110,7 @@ describe('TrendChart', () => {
   });
 
   it('should apply filters correctly', () => {
-    const filters = { source: ['SYSTEM_A'] };
+    const filters = { source: ['FINANCE_SYSTEM'] };
     render(<TrendChart data={mockData} filters={filters} />);
     
     // Should still render the chart

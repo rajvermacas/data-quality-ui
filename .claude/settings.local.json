@@ -11,7 +11,8 @@
       "mcp__firecrawl__firecrawl_scrape",
       "mcp__puppeteer__puppeteer_fill",
       "WebFetch(domain:ai.google.dev)",
-      "Bash(export USE_LANGCHAIN=true)"
+      "Bash(export USE_LANGCHAIN=true)",
+      "WebFetch(domain:recharts.org)"
     ],
     "deny": []
   }
