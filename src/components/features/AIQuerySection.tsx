@@ -174,11 +174,16 @@ export function AIQuerySection({}: AIQuerySectionProps) {
     switch (chartType) {
       case 'bar':
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData}>
+          <ResponsiveContainer width="100%" height={450}>
+            <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 70 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={config.xAxis} />
-              <YAxis />
+              <XAxis 
+                dataKey={config.xAxis} 
+                label={{ value: config.xAxis, position: 'insideBottom', offset: -20 }}
+              />
+              <YAxis 
+                label={{ value: config.yAxis.join(', '), angle: -90, position: 'insideLeft' }}
+              />
               <Tooltip />
               {config.yAxis.map((yField, index) => (
                 <Bar 
@@ -193,11 +198,16 @@ export function AIQuerySection({}: AIQuerySectionProps) {
       
       case 'line':
         return (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData}>
+          <ResponsiveContainer width="100%" height={450}>
+            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 70 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey={config.xAxis} />
-              <YAxis />
+              <XAxis 
+                dataKey={config.xAxis} 
+                label={{ value: config.xAxis, position: 'insideBottom', offset: -20 }}
+              />
+              <YAxis 
+                label={{ value: config.yAxis.join(', '), angle: -90, position: 'insideLeft' }}
+              />
               <Tooltip />
               {config.yAxis.map((yField, index) => (
                 <Line 
@@ -317,7 +327,7 @@ export function AIQuerySection({}: AIQuerySectionProps) {
           </h3>
           
           {/* Chart */}
-          <div className="mb-6">
+          <div className="mb-2">
             {renderChart(state.result)}
           </div>
 
