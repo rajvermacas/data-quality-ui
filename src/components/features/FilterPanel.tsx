@@ -15,13 +15,16 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
   const uniqueTenants = getUniqueValues(data, 'tenant_id');
   const showTenantFilter = uniqueTenants.length > 1;
 
-  const filterConfig = [
+  const dataSourceFilters = [
+    ...(showTenantFilter ? [{ key: 'tenant_id', label: 'Tenant' }] : []),
     { key: 'source', label: 'Source System' },
-    { key: 'dataset_name', label: 'Dataset Name' },
-    { key: 'rule_type', label: 'Rule Type' },
-    { key: 'dimension', label: 'Dimension' },
+    { key: 'dataset_name', label: 'Dataset Name' }
+  ];
+
+  const dataQualityFilters = [
     { key: 'trend_flag', label: 'Trend Direction' },
-    ...(showTenantFilter ? [{ key: 'tenant_id', label: 'Tenant' }] : [])
+    { key: 'dimension', label: 'Dimension' },
+    { key: 'rule_type', label: 'Rule Type' }
   ];
 
   const handleFilterChange = (filterKey: string, value: string, checked: boolean) => {
@@ -66,32 +69,74 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
       </div>
 
       {isOpen && (
-        <div className="space-y-4">
-          {filterConfig.map((config) => {
-            const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
-            const selectedValues = filters[config.key] || [];
+        <div className="space-y-6">
+          {/* Data Source Filters */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 pb-1 border-b border-gray-200">
+              Data Source
+            </h4>
+            <div className="space-y-4">
+              {dataSourceFilters.map((config) => {
+                const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
+                const selectedValues = filters[config.key] || [];
 
-            return (
-              <div key={config.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {config.label}
-                </label>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
-                  {values.map((value) => (
-                    <label key={value} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedValues.includes(value)}
-                        onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{value}</span>
+                return (
+                  <div key={config.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {config.label}
                     </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {values.map((value) => (
+                        <label key={value} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedValues.includes(value)}
+                            onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{value}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Data Quality Filters */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 pb-1 border-b border-gray-200">
+              Data Quality
+            </h4>
+            <div className="space-y-4">
+              {dataQualityFilters.map((config) => {
+                const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
+                const selectedValues = filters[config.key] || [];
+
+                return (
+                  <div key={config.key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {config.label}
+                    </label>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {values.map((value) => (
+                        <label key={value} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedValues.includes(value)}
+                            onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{value}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {getFilterCount() > 0 && (
             <button

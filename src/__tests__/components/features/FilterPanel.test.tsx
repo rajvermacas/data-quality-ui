@@ -58,7 +58,7 @@ describe('FilterPanel', () => {
     jest.clearAllMocks();
   });
 
-  it('should render filter sections', () => {
+  it('should render filter sections with proper grouping', () => {
     render(
       <FilterPanel
         data={mockData}
@@ -68,6 +68,8 @@ describe('FilterPanel', () => {
     );
     
     expect(screen.getByText('Filters')).toBeInTheDocument();
+    expect(screen.getByText('Data Source')).toBeInTheDocument();
+    expect(screen.getByText('Data Quality')).toBeInTheDocument();
     expect(screen.getByText('Source System')).toBeInTheDocument();
     expect(screen.getByText('Dataset Name')).toBeInTheDocument();
     expect(screen.getByText('Rule Type')).toBeInTheDocument();
@@ -232,5 +234,40 @@ describe('FilterPanel', () => {
     );
     
     expect(screen.getByText('Tenant')).toBeInTheDocument();
+  });
+
+  it('should render filters in correct order within categories', () => {
+    const multiTenantData = [
+      ...mockData,
+      { ...mockData[0], tenant_id: 'tenant_002' }
+    ];
+    
+    render(
+      <FilterPanel
+        data={multiTenantData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    // Check Data Source category filters order: Tenant, Source System, Dataset Name
+    const dataSourceSection = screen.getByText('Data Source').closest('div');
+    const tenantLabel = screen.getByText('Tenant');
+    const sourceSystemLabel = screen.getByText('Source System');
+    const datasetNameLabel = screen.getByText('Dataset Name');
+    
+    expect(dataSourceSection).toContainElement(tenantLabel);
+    expect(dataSourceSection).toContainElement(sourceSystemLabel);
+    expect(dataSourceSection).toContainElement(datasetNameLabel);
+    
+    // Check Data Quality category filters order: Trend Direction, Dimension, Rule Type
+    const dataQualitySection = screen.getByText('Data Quality').closest('div');
+    const trendDirectionLabel = screen.getByText('Trend Direction');
+    const dimensionLabel = screen.getByText('Dimension');
+    const ruleTypeLabel = screen.getByText('Rule Type');
+    
+    expect(dataQualitySection).toContainElement(trendDirectionLabel);
+    expect(dataQualitySection).toContainElement(dimensionLabel);
+    expect(dataQualitySection).toContainElement(ruleTypeLabel);
   });
 });
