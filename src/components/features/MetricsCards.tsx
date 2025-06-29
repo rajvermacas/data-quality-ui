@@ -22,13 +22,13 @@ export function MetricsCards({ metrics }: MetricsCardsProps) {
       title: 'Trending Down',
       value: metrics.trendingDown.toLocaleString(),
       icon: '📉',
-      color: 'red'
+      color: 'green'
     },
     {
       title: 'Trending Up',
       value: metrics.trendingUp.toLocaleString(),
       icon: '📈',
-      color: 'green'
+      color: 'red'
     },
     {
       title: 'Stable',
