@@ -10,6 +10,7 @@ jest.mock('@/lib/dataProcessor', () => ({
     if (field === 'rule_type') return ['BUSINESS_RULE', 'ATTRIBUTE'];
     if (field === 'dimension') return ['Validity', 'Completeness'];
     if (field === 'trend_flag') return ['up', 'down', 'equal'];
+    if (field === 'rule_name') return ['Data Completeness Check', 'Format Validation', 'Business Logic Rule'];
     if (field === 'tenant_id') {
       // Return unique tenant_ids from the actual data passed to it
       const uniqueTenants = [...new Set(data.map(item => item.tenant_id))];
@@ -75,6 +76,7 @@ describe('FilterPanel', () => {
     expect(screen.getByText('Rule Type')).toBeInTheDocument();
     expect(screen.getByText('Dimension')).toBeInTheDocument();
     expect(screen.getByText('Trend Direction')).toBeInTheDocument();
+    expect(screen.getByText('Rule Name')).toBeInTheDocument();
   });
 
   it('should render filter options from data', () => {
@@ -94,6 +96,9 @@ describe('FilterPanel', () => {
     expect(screen.getByText('ATTRIBUTE')).toBeInTheDocument();
     expect(screen.getByText('Validity')).toBeInTheDocument();
     expect(screen.getByText('Completeness')).toBeInTheDocument();
+    expect(screen.getByText('Data Completeness Check')).toBeInTheDocument();
+    expect(screen.getByText('Format Validation')).toBeInTheDocument();
+    expect(screen.getByText('Business Logic Rule')).toBeInTheDocument();
   });
 
   it('should handle filter selection', () => {
@@ -260,14 +265,45 @@ describe('FilterPanel', () => {
     expect(dataSourceSection).toContainElement(sourceSystemLabel);
     expect(dataSourceSection).toContainElement(datasetNameLabel);
     
-    // Check Data Quality category filters order: Trend Direction, Dimension, Rule Type
+    // Check Data Quality category filters order: Trend Direction, Dimension, Rule Type, Rule Name
     const dataQualitySection = screen.getByText('Data Quality').closest('div');
     const trendDirectionLabel = screen.getByText('Trend Direction');
     const dimensionLabel = screen.getByText('Dimension');
     const ruleTypeLabel = screen.getByText('Rule Type');
+    const ruleNameLabel = screen.getByText('Rule Name');
     
     expect(dataQualitySection).toContainElement(trendDirectionLabel);
     expect(dataQualitySection).toContainElement(dimensionLabel);
     expect(dataQualitySection).toContainElement(ruleTypeLabel);
+    expect(dataQualitySection).toContainElement(ruleNameLabel);
+  });
+
+  it('should handle rule name filter selection', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{}}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    const ruleNameCheckbox = screen.getByLabelText('Data Completeness Check');
+    fireEvent.click(ruleNameCheckbox);
+    
+    expect(mockOnFiltersChange).toHaveBeenCalledWith({
+      rule_name: ['Data Completeness Check']
+    });
+  });
+
+  it('should show active filter count with rule name filter', () => {
+    render(
+      <FilterPanel
+        data={mockData}
+        filters={{ rule_name: ['Data Completeness Check'], dimension: ['Validity'] }}
+        onFiltersChange={mockOnFiltersChange}
+      />
+    );
+    
+    expect(screen.getByText('2 active')).toBeInTheDocument();
   });
 });

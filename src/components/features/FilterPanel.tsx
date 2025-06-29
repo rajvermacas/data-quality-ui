@@ -24,7 +24,8 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
   const dataQualityFilters = [
     { key: 'trend_flag', label: 'Trend Direction' },
     { key: 'dimension', label: 'Dimension' },
-    { key: 'rule_type', label: 'Rule Type' }
+    { key: 'rule_type', label: 'Rule Type' },
+    { key: 'rule_name', label: 'Rule Name' }
   ];
 
   const handleFilterChange = (filterKey: string, value: string, checked: boolean) => {

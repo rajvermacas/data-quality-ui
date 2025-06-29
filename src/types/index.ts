@@ -35,6 +35,7 @@ export interface FilterState extends Record<string, string[] | undefined> {
   dimension?: string[];
   tenant_id?: string[];
   trend_flag?: string[];
+  rule_name?: string[];
 }
 
 export interface TrendData {
