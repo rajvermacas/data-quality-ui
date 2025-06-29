@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem } from '@/types';
 import { processCSVData, calculateDashboardMetrics, getUrgentAttentionItems } from '@/lib/dataProcessor';
 import { MetricsCards } from '@/components/features/MetricsCards';
@@ -38,6 +38,7 @@ export function Dashboard() {
 
   const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [activeView, setActiveView] = useState<'trends' | 'heatmap' | 'matrix'>('trends');
+  const trendChartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -72,6 +73,40 @@ export function Dashboard() {
         error: 'Error loading dashboard data'
       }));
     }
+  };
+
+  const handleTrendClick = (trend: 'down' | 'up' | 'equal') => {
+    // Set the trend filter
+    const newFilters = {
+      ...filters,
+      trend_flag: [trend]
+    };
+    setFilters(newFilters);
+
+    // Switch to trends view if not already active
+    if (activeView !== 'trends') {
+      setActiveView('trends');
+    }
+
+    // Scroll to the trend chart after a short delay to ensure the view has switched
+    setTimeout(() => {
+      if (trendChartRef.current) {
+        trendChartRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+        
+        // Add a subtle flash effect to highlight the chart
+        trendChartRef.current.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.5)';
+        trendChartRef.current.style.transition = 'box-shadow 0.3s ease-in-out';
+        
+        setTimeout(() => {
+          if (trendChartRef.current) {
+            trendChartRef.current.style.boxShadow = '';
+          }
+        }, 1500);
+      }
+    }, 100);
   };
 
   if (state.loading) {
@@ -114,7 +149,7 @@ export function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           {/* Metrics Overview */}
-          <MetricsCards metrics={state.metrics} />
+          <MetricsCards metrics={state.metrics} onTrendClick={handleTrendClick} />
 
           {/* Urgent Attention Widget */}
           <UrgentAttentionWidget items={state.urgentItems} />
@@ -133,7 +168,7 @@ export function Dashboard() {
             </div>
 
             {/* Main Visualization Area */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3" ref={trendChartRef}>
               {/* View Selector */}
               <div className="bg-white rounded-lg shadow-sm border mb-6 p-4">
                 <div className="flex items-center justify-between">

@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MetricsCards } from '@/components/features/MetricsCards';
 import { DashboardMetrics } from '@/types';
 
@@ -68,5 +69,97 @@ describe('MetricsCards', () => {
     expect(screen.getByText('2,000')).toBeInTheDocument();
     expect(screen.getByText('3,000')).toBeInTheDocument();
     expect(screen.getByText('12.5%')).toBeInTheDocument();
+  });
+
+  it('should render clickable trend cards with proper styling', () => {
+    const mockOnTrendClick = jest.fn();
+    render(<MetricsCards metrics={mockMetrics} onTrendClick={mockOnTrendClick} />);
+    
+    const trendingDownCard = screen.getByRole('button', { name: /trending down/i });
+    const trendingUpCard = screen.getByRole('button', { name: /trending up/i });
+    const stableCard = screen.getByRole('button', { name: /stable/i });
+    const totalDatasetsCard = screen.getByText('Total Datasets').closest('div');
+    
+    // Trend cards should have clickable styling
+    expect(trendingDownCard).toHaveClass('cursor-pointer');
+    expect(trendingUpCard).toHaveClass('cursor-pointer');
+    expect(stableCard).toHaveClass('cursor-pointer');
+    
+    // Non-trend cards should not have clickable styling
+    expect(totalDatasetsCard).not.toHaveClass('cursor-pointer');
+    
+    // Trend cards should have click hint text
+    expect(screen.getAllByText('Click to view trends')).toHaveLength(3);
+  });
+
+  it('should call onTrendClick with correct trend when trend cards are clicked', async () => {
+    const user = userEvent.setup();
+    const mockOnTrendClick = jest.fn();
+    
+    render(<MetricsCards metrics={mockMetrics} onTrendClick={mockOnTrendClick} />);
+    
+    // Click Trending Down card
+    const trendingDownCard = screen.getByText('Trending Down').closest('div');
+    await user.click(trendingDownCard!);
+    expect(mockOnTrendClick).toHaveBeenCalledWith('down');
+    
+    // Click Trending Up card
+    const trendingUpCard = screen.getByText('Trending Up').closest('div');
+    await user.click(trendingUpCard!);
+    expect(mockOnTrendClick).toHaveBeenCalledWith('up');
+    
+    // Click Stable card
+    const stableCard = screen.getByText('Stable').closest('div');
+    await user.click(stableCard!);
+    expect(mockOnTrendClick).toHaveBeenCalledWith('equal');
+    
+    expect(mockOnTrendClick).toHaveBeenCalledTimes(3);
+  });
+
+  it('should not call onTrendClick when non-trend cards are clicked', async () => {
+    const user = userEvent.setup();
+    const mockOnTrendClick = jest.fn();
+    
+    render(<MetricsCards metrics={mockMetrics} onTrendClick={mockOnTrendClick} />);
+    
+    // Click non-trend cards
+    const totalDatasetsCard = screen.getByText('Total Datasets').closest('div');
+    const urgentAttentionCard = screen.getByText('Urgent Attention').closest('div');
+    
+    await user.click(totalDatasetsCard!);
+    await user.click(urgentAttentionCard!);
+    
+    expect(mockOnTrendClick).not.toHaveBeenCalled();
+  });
+
+  it('should handle keyboard navigation for trend cards', () => {
+    const mockOnTrendClick = jest.fn();
+    
+    render(<MetricsCards metrics={mockMetrics} onTrendClick={mockOnTrendClick} />);
+    
+    const trendingDownCard = screen.getByText('Trending Down').closest('div');
+    
+    // Test Enter key
+    fireEvent.keyDown(trendingDownCard!, { key: 'Enter' });
+    expect(mockOnTrendClick).toHaveBeenCalledWith('down');
+    
+    // Test Space key
+    fireEvent.keyDown(trendingDownCard!, { key: ' ' });
+    expect(mockOnTrendClick).toHaveBeenCalledWith('down');
+    
+    // Test other keys (should not trigger)
+    fireEvent.keyDown(trendingDownCard!, { key: 'Tab' });
+    expect(mockOnTrendClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('should work without onTrendClick prop', () => {
+    // Should not throw error when onTrendClick is not provided
+    expect(() => {
+      render(<MetricsCards metrics={mockMetrics} />);
+    }).not.toThrow();
+    
+    // Cards should still render but without click functionality
+    expect(screen.getByText('Trending Down')).toBeInTheDocument();
+    expect(screen.queryByText('Click to view trends')).not.toBeInTheDocument();
   });
 });

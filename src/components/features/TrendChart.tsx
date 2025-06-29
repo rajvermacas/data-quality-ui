@@ -73,6 +73,17 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
     '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
   ];
 
+  // Check if trend filter is active
+  const trendFilter = filters.trend_flag?.[0];
+  const getTrendDisplayText = (trend: string) => {
+    switch (trend) {
+      case 'down': return 'Trending Down';
+      case 'up': return 'Trending Up';
+      case 'equal': return 'Stable';
+      default: return '';
+    }
+  };
+
   const chartData = useMemo(() => {
     const filteredData = filterData(data, filters);
     
@@ -158,18 +169,33 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
     URL.revokeObjectURL(url);
   };
 
+  const chartTitle = trendFilter 
+    ? `Dataset Failure Rate Trends Over Time - ${getTrendDisplayText(trendFilter)}` 
+    : "Dataset Failure Rate Trends Over Time";
+  
+  const chartDescription = trendFilter 
+    ? `Progression from 12 months to current month, showing datasets that are ${getTrendDisplayText(trendFilter).toLowerCase()}`
+    : "Progression from 12 months to current month";
+
   return (
     <ChartContainer
-      title="Dataset Failure Rate Trends Over Time"
-      description="Progression from 12 months to current month"
+      title={chartTitle}
+      description={chartDescription}
       filters={filterPanel}
       actions={
-        <button
-          onClick={exportData}
-          className="btn-secondary text-sm"
-        >
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          {trendFilter && (
+            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+              Filter: {getTrendDisplayText(trendFilter)}
+            </span>
+          )}
+          <button
+            onClick={exportData}
+            className="btn-secondary text-sm"
+          >
+            Export CSV
+          </button>
+        </div>
       }
     >
       {chartData.datasets.length === 0 ? (
