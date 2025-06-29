@@ -1,0 +1,28 @@
+I have a new feature to develop.
+I need to call the below api and wait for the response.
+Here is what it does:
+It is the url of an n8n.io workflow where I have already created the workflow. It does the following:
+1. Take the input from message
+2. call gemini flash llm to prepare a gitlab issue format with the content in the input.
+3. creates the gitlab issue 
+4. Sends a mail 
+5. returns the response saying workflow is completed and here is the gitlab url for the issue.
+
+Below is the curl command:
+curl -X POST https://aibard.app.n8n.cloud/webhook-test/data-quality \
+    -H "Content-Type: application/json" \
+    -d '{
+      "message": "There is an increase in the HR system failure rate percentage by 34%. Assign it to aibardchatgpt17@gmail.com"
+    }'
+
+Below is the response:
+{"workflowStatus":"completed","issueWebUrl":"https://gitlab.com/my-group-name2452611/data-quality/-/issues/12"}
+
+
+Here is the requiremnet of the feature I want to you develop:
+1. In the AI Query Assistant section there should be a but which should say something like create Issue.
+2. Once this button is clicked, the user should be able to provide his input in plain natural language.
+3. this input should be sent to the n8n api in the message body parameter.
+4. Once you receive the response you should send an acknowledgement to the user that its created.
+5. Also share the gitlab issue url so that the user can navigate and see the issue. 
+6. Design it in a professional UI developer.
