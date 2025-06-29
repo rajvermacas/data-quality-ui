@@ -161,4 +161,48 @@ describe('extractJSONFromText', () => {
     const result = extractJSONFromText(text);
     expect(result).toBe('{"key": "value"}');
   });
+
+  it('should extract chart JSON from concatenated LangChain response', () => {
+    const concatenatedResponse = 
+      '{"type":"executableCode","executableCode":{"language":"PYTHON","code":"import pandas as pd"}}' +
+      '{"type":"codeExecutionResult","codeExecutionResult":{"outcome":"OUTCOME_OK","output":"data loaded"}}' +
+      '{"chartType":"bar","title":"Test Chart","data":[{"x":1,"y":2}],"config":{"xAxis":"x","yAxis":["y"]}}';
+    
+    const result = extractJSONFromText(concatenatedResponse);
+    const parsed = JSON.parse(result);
+    
+    expect(parsed.chartType).toBe('bar');
+    expect(parsed.title).toBe('Test Chart');
+    expect(parsed.data).toEqual([{"x":1,"y":2}]);
+    expect(parsed.config).toEqual({"xAxis":"x","yAxis":["y"]});
+  });
+
+  it('should handle complex concatenated response with multiple code blocks', () => {
+    const complexResponse = 
+      '{"type":"executableCode","executableCode":{"language":"PYTHON","code":"df = pd.read_csv(\\"file.csv\\")"}}' +
+      '{"type":"codeExecutionResult","codeExecutionResult":{"outcome":"OUTCOME_OK","output":"DataFrame loaded"}}' +
+      '{"type":"executableCode","executableCode":{"language":"PYTHON","code":"result = df.groupby(\\"category\\").sum()"}}' +
+      '{"type":"codeExecutionResult","codeExecutionResult":{"outcome":"OUTCOME_OK","output":"[{\\"category\\": \\"A\\", \\"value\\": 100}]"}}' +
+      '{"chartType":"line","title":"Category Analysis","data":[{"category":"A","value":100}],"config":{"xAxis":"category","yAxis":["value"]},"insights":"Analysis complete"}';
+    
+    const result = extractJSONFromText(complexResponse);
+    const parsed = JSON.parse(result);
+    
+    expect(parsed.chartType).toBe('line');
+    expect(parsed.title).toBe('Category Analysis');
+    expect(parsed.insights).toBe('Analysis complete');
+  });
+
+  it('should fallback to last object if no chart JSON found', () => {
+    const responseWithoutChart = 
+      '{"type":"executableCode","executableCode":{"language":"PYTHON","code":"print(\\"hello\\")"}}' +
+      '{"type":"codeExecutionResult","codeExecutionResult":{"outcome":"OUTCOME_OK","output":"hello"}}' +
+      '{"summary":"No chart data available","message":"Query could not generate visualization"}';
+    
+    const result = extractJSONFromText(responseWithoutChart);
+    const parsed = JSON.parse(result);
+    
+    expect(parsed.summary).toBe('No chart data available');
+    expect(parsed.message).toBe('Query could not generate visualization');
+  });
 });
