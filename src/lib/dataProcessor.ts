@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem } from '@/types';
+import { getAvailableFilterOptions, SmartFilterResult } from './smartFilterEngine';
 
 export function processCSVData(csvString: string): DataQualityRecord[] {
   if (!csvString.trim()) {
@@ -102,4 +103,65 @@ export function filterData(data: DataQualityRecord[], filters: Record<string, st
 export function getUniqueValues(data: DataQualityRecord[], field: keyof DataQualityRecord): string[] {
   const values = data.map(item => item[field] as string);
   return [...new Set(values)].sort();
+}
+
+/**
+ * Get filtered unique values based on current filter context
+ * This is used for smart filtering where options depend on other active filters
+ */
+export function getFilteredUniqueValues(
+  data: DataQualityRecord[], 
+  field: keyof DataQualityRecord,
+  currentFilters: Record<string, string[]>
+): string[] {
+  // First apply existing filters (excluding the target field)
+  const filtersWithoutTarget = { ...currentFilters };
+  delete filtersWithoutTarget[field as string];
+  
+  const filteredData = filterData(data, filtersWithoutTarget);
+  return getUniqueValues(filteredData, field);
+}
+
+/**
+ * Get smart filter options with statistics
+ */
+export function getSmartFilterOptions(
+  data: DataQualityRecord[],
+  currentFilters: Record<string, string[]>
+): SmartFilterResult {
+  return getAvailableFilterOptions(data, currentFilters);
+}
+
+/**
+ * Check if a filter combination would yield any results
+ */
+export function hasDataForFilters(
+  data: DataQualityRecord[],
+  filters: Record<string, string[]>
+): boolean {
+  const filteredData = filterData(data, filters);
+  return filteredData.length > 0;
+}
+
+/**
+ * Get count of records for each filter value
+ * Useful for showing data counts next to filter options
+ */
+export function getFilterValueCounts(
+  data: DataQualityRecord[],
+  field: keyof DataQualityRecord,
+  currentFilters: Record<string, string[]>
+): Record<string, number> {
+  const filtersWithoutTarget = { ...currentFilters };
+  delete filtersWithoutTarget[field as string];
+  
+  const filteredData = filterData(data, filtersWithoutTarget);
+  const counts: Record<string, number> = {};
+  
+  filteredData.forEach(item => {
+    const value = item[field] as string;
+    counts[value] = (counts[value] || 0) + 1;
+  });
+  
+  return counts;
 }
