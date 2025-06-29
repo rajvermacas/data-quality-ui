@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { DataQualityRecord, FilterState } from '../../types';
 import { filterData } from '../../lib/dataProcessor';
+import { ChartContainer } from '../ui/ChartContainer';
 
 interface HeatmapProps {
   data: DataQualityRecord[];
@@ -71,85 +72,69 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, filters }) => {
     return 'bg-red-400';
   };
 
-  if (heatmapData.length === 0) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Data Quality Heatmap
-        </h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Failure rates by source system and rule type
-        </p>
+  return (
+    <ChartContainer
+      title="Data Quality Heatmap"
+      description="Failure rates by source system and rule type"
+    >
+      {heatmapData.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           No data available
         </div>
-      </div>
-    );
-  }
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-full">
+            {/* Legend */}
+            <div className="mb-4 flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-700">Failure Rate:</span>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-green-200 rounded"></div>
+                <span className="text-xs text-gray-600">Low</span>
+                <div className="w-4 h-4 bg-yellow-200 rounded"></div>
+                <div className="w-4 h-4 bg-orange-300 rounded"></div>
+                <div className="w-4 h-4 bg-red-400 rounded"></div>
+                <span className="text-xs text-gray-600">High</span>
+              </div>
+            </div>
 
-  return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Data Quality Heatmap
-        </h3>
-        <p className="text-sm text-gray-600">
-          Failure rates by source system and rule type
-        </p>
-      </div>
+            {/* Heatmap Grid */}
+            <div className="grid gap-2" style={{ gridTemplateColumns: `150px repeat(${ruleTypes.length}, 100px)` }}>
+              {/* Header row */}
+              <div></div>
+              {ruleTypes.map(ruleType => (
+                <div key={ruleType} className="text-xs font-medium text-gray-700 text-center p-2 border-b">
+                  {ruleType}
+                </div>
+              ))}
 
-      <div className="overflow-x-auto">
-        <div className="min-w-full">
-          {/* Legend */}
-          <div className="mb-4 flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-700">Failure Rate:</span>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 bg-green-200 rounded"></div>
-              <span className="text-xs text-gray-600">Low</span>
-              <div className="w-4 h-4 bg-yellow-200 rounded"></div>
-              <div className="w-4 h-4 bg-orange-300 rounded"></div>
-              <div className="w-4 h-4 bg-red-400 rounded"></div>
-              <span className="text-xs text-gray-600">High</span>
+              {/* Data rows */}
+              {sources.map(source => (
+                <React.Fragment key={source}>
+                  <div className="text-sm font-medium text-gray-900 p-2 truncate border-r">
+                    {source}
+                  </div>
+                  {ruleTypes.map(ruleType => {
+                    const failRate = getHeatmapValue(source, ruleType);
+                    return (
+                      <div
+                        key={`${source}-${ruleType}`}
+                        className={`h-16 border rounded ${getColorIntensity(failRate)} flex items-center justify-center hover:shadow-md transition-shadow cursor-pointer`}
+                        title={`${source} - ${ruleType}: ${(failRate * 100).toFixed(1)}% failure rate`}
+                      >
+                        {failRate > 0 && (
+                          <span className="text-xs font-medium text-gray-800">
+                            {(failRate * 100).toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </div>
           </div>
-
-          {/* Heatmap Grid */}
-          <div className="grid gap-2" style={{ gridTemplateColumns: `150px repeat(${ruleTypes.length}, 100px)` }}>
-            {/* Header row */}
-            <div></div>
-            {ruleTypes.map(ruleType => (
-              <div key={ruleType} className="text-xs font-medium text-gray-700 text-center p-2 border-b">
-                {ruleType}
-              </div>
-            ))}
-
-            {/* Data rows */}
-            {sources.map(source => (
-              <React.Fragment key={source}>
-                <div className="text-sm font-medium text-gray-900 p-2 truncate border-r">
-                  {source}
-                </div>
-                {ruleTypes.map(ruleType => {
-                  const failRate = getHeatmapValue(source, ruleType);
-                  return (
-                    <div
-                      key={`${source}-${ruleType}`}
-                      className={`h-16 border rounded ${getColorIntensity(failRate)} flex items-center justify-center hover:shadow-md transition-shadow cursor-pointer`}
-                      title={`${source} - ${ruleType}: ${(failRate * 100).toFixed(1)}% failure rate`}
-                    >
-                      {failRate > 0 && (
-                        <span className="text-xs font-medium text-gray-800">
-                          {(failRate * 100).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </ChartContainer>
   );
 };

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { DataQualityRecord } from '@/types';
 import { filterData } from '@/lib/dataProcessor';
+import { ChartContainer } from '@/components/ui/ChartContainer';
 
 interface TrendChartProps {
   data: DataQualityRecord[];
@@ -94,22 +95,18 @@ export function TrendChart({ data, filters }: TrendChartProps) {
   };
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Dataset Failure Rate Trends Over Time</h3>
-          <p className="text-sm text-gray-600 mt-1">
-            Progression from 12 months to current month
-          </p>
-        </div>
+    <ChartContainer
+      title="Dataset Failure Rate Trends Over Time"
+      description="Progression from 12 months to current month"
+      actions={
         <button
           onClick={exportData}
           className="btn-secondary text-sm"
         >
           Export CSV
         </button>
-      </div>
-
+      }
+    >
       {chartData.datasets.length === 0 ? (
         <div className="flex items-center justify-center h-64 text-gray-500">
           <div className="text-center">
@@ -118,48 +115,49 @@ export function TrendChart({ data, filters }: TrendChartProps) {
           </div>
         </div>
       ) : (
-        <div className="h-96">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData.timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="period" 
-                fontSize={12}
-              />
-              <YAxis 
-                label={{ value: 'Failure Rate (%)', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip 
-                formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
-                labelStyle={{ fontSize: 12 }}
-              />
-              <Legend />
-              {chartData.datasets.map((dataset, index) => {
-                const colors = [
-                  '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
-                  '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
-                ];
-                const color = colors[index % colors.length];
-                
-                return (
-                  <Line 
-                    key={dataset.dataset}
-                    type="monotone" 
-                    dataKey={dataset.dataset}
-                    stroke={color}
-                    strokeWidth={2}
-                    dot={{ fill: color, strokeWidth: 2, r: 4 }}
-                  />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData.timeSeriesData} margin={{ top: 5, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="period" 
+                  fontSize={12}
+                />
+                <YAxis 
+                  label={{ value: 'Failure Rate (%)', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
+                  labelStyle={{ fontSize: 12 }}
+                />
+                <Legend />
+                {chartData.datasets.map((dataset, index) => {
+                  const colors = [
+                    '#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6',
+                    '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1'
+                  ];
+                  const color = colors[index % colors.length];
+                  
+                  return (
+                    <Line 
+                      key={dataset.dataset}
+                      type="monotone" 
+                      dataKey={dataset.dataset}
+                      stroke={color}
+                      strokeWidth={2}
+                      dot={{ fill: color, strokeWidth: 2, r: 4 }}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 text-xs text-gray-500">
+            Showing {chartData.datasets.length} datasets. Use filters to refine the view.
+          </div>
+        </>
       )}
-      
-      <div className="mt-4 text-xs text-gray-500">
-        Showing {chartData.datasets.length} datasets. Use filters to refine the view.
-      </div>
-    </div>
+    </ChartContainer>
   );
 }

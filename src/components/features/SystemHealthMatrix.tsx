@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { DataQualityRecord, FilterState } from '../../types';
 import { filterData } from '../../lib/dataProcessor';
+import { ChartContainer } from '../ui/ChartContainer';
 
 interface SystemHealthMatrixProps {
   data: DataQualityRecord[];
@@ -84,113 +85,97 @@ export const SystemHealthMatrix: React.FC<SystemHealthMatrixProps> = ({ data, fi
     }
   };
 
-  if (healthMatrix.length === 0) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          System Health Matrix
-        </h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Overall health status of systems vs quality dimensions
-        </p>
+  return (
+    <ChartContainer
+      title="System Health Matrix"
+      description="Overall health status of systems vs quality dimensions"
+    >
+      {healthMatrix.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
           No data available
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          System Health Matrix
-        </h3>
-        <p className="text-sm text-gray-600">
-          Overall health status of systems vs quality dimensions
-        </p>
-      </div>
-
-      <div className="overflow-x-auto">
-        <div className="min-w-full">
-          {/* Legend */}
-          <div className="mb-4 flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-700">Health Status:</span>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <span className="text-xs text-gray-600">Excellent (95%+)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-green-300 rounded"></div>
-                <span className="text-xs text-gray-600">Good (85%+)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-yellow-300 rounded"></div>
-                <span className="text-xs text-gray-600">Warning (70%+)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                <span className="text-xs text-gray-600">Critical (&lt;70%)</span>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="min-w-full">
+            {/* Legend */}
+            <div className="mb-4 flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-700">Health Status:</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-green-500 rounded"></div>
+                  <span className="text-xs text-gray-600">Excellent (95%+)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-green-300 rounded"></div>
+                  <span className="text-xs text-gray-600">Good (85%+)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-yellow-300 rounded"></div>
+                  <span className="text-xs text-gray-600">Warning (70%+)</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 bg-red-500 rounded"></div>
+                  <span className="text-xs text-gray-600">Critical (&lt;70%)</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Matrix Grid */}
-          <div className="grid gap-2" style={{ gridTemplateColumns: `150px repeat(${dimensions.length}, 120px)` }}>
-            {/* Header row */}
-            <div className="font-medium text-gray-900 text-center p-2">System</div>
-            {dimensions.map(dimension => (
-              <div key={dimension} className="text-sm font-medium text-gray-700 text-center p-2 border-b">
-                {dimension}
-              </div>
-            ))}
-
-            {/* Data rows */}
-            {systems.map(system => (
-              <React.Fragment key={system}>
-                <div className="text-sm font-medium text-gray-900 p-2 truncate border-r">
-                  {system}
+            {/* Matrix Grid */}
+            <div className="grid gap-2" style={{ gridTemplateColumns: `150px repeat(${dimensions.length}, 120px)` }}>
+              {/* Header row */}
+              <div className="font-medium text-gray-900 text-center p-2">System</div>
+              {dimensions.map(dimension => (
+                <div key={dimension} className="text-sm font-medium text-gray-700 text-center p-2 border-b">
+                  {dimension}
                 </div>
-                {dimensions.map(dimension => {
-                  const metric = getHealthMetric(system, dimension);
-                  return (
-                    <div
-                      key={`${system}-${dimension}`}
-                      data-testid={`health-cell-${system}-${dimension}`}
-                      className={`h-16 border rounded flex flex-col items-center justify-center hover:shadow-md transition-shadow cursor-pointer ${
-                        metric ? getStatusColor(metric.status) : 'bg-gray-100 text-gray-400'
-                      }`}
-                      title={metric 
-                        ? `${system} - ${dimension}: ${metric.healthScore}% health (${(metric.failRate * 100).toFixed(1)}% failure rate)`
-                        : `No data for ${system} - ${dimension}`
-                      }
-                    >
-                      {metric ? (
-                        <>
-                          <span className="text-sm font-bold">
-                            {metric.healthScore}%
-                          </span>
-                          <span className="text-xs opacity-75">
-                            {metric.status}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs">N/A</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </React.Fragment>
-            ))}
-          </div>
+              ))}
 
-          {/* Summary */}
-          <div className="mt-4 text-xs text-gray-500">
-            Showing health scores for {systems.length} systems across {dimensions.length} dimensions
+              {/* Data rows */}
+              {systems.map(system => (
+                <React.Fragment key={system}>
+                  <div className="text-sm font-medium text-gray-900 p-2 truncate border-r">
+                    {system}
+                  </div>
+                  {dimensions.map(dimension => {
+                    const metric = getHealthMetric(system, dimension);
+                    return (
+                      <div
+                        key={`${system}-${dimension}`}
+                        data-testid={`health-cell-${system}-${dimension}`}
+                        className={`h-16 border rounded flex flex-col items-center justify-center hover:shadow-md transition-shadow cursor-pointer ${
+                          metric ? getStatusColor(metric.status) : 'bg-gray-100 text-gray-400'
+                        }`}
+                        title={metric 
+                          ? `${system} - ${dimension}: ${metric.healthScore}% health (${(metric.failRate * 100).toFixed(1)}% failure rate)`
+                          : `No data for ${system} - ${dimension}`
+                        }
+                      >
+                        {metric ? (
+                          <>
+                            <span className="text-sm font-bold">
+                              {metric.healthScore}%
+                            </span>
+                            <span className="text-xs opacity-75">
+                              {metric.status}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs">N/A</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
+
+            {/* Summary */}
+            <div className="mt-4 text-xs text-gray-500">
+              Showing health scores for {systems.length} systems across {dimensions.length} dimensions
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </ChartContainer>
   );
 };
