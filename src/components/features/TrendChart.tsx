@@ -127,7 +127,17 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
                   fontSize={12}
                 />
                 <YAxis 
-                  label={{ value: 'Failure Rate (%)', angle: -90, position: 'insideLeft' }}
+                  label={{ 
+                    value: 'Failure Rate (%)', 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { 
+                      textAnchor: 'middle',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      fill: '#374151'
+                    }
+                  }}
                 />
                 <Tooltip 
                   formatter={(value: number) => [`${value.toFixed(2)}%`, '']}

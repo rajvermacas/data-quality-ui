@@ -184,7 +184,17 @@ export function AIQuerySection({}: AIQuerySectionProps) {
                 label={{ value: config.xAxis, position: 'insideBottom', offset: -20 }}
               />
               <YAxis 
-                label={{ value: config.yAxis.join(', '), angle: -90, position: 'insideLeft' }}
+                label={{ 
+                  value: config.yAxis.join(', '), 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  style: { 
+                    textAnchor: 'middle',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    fill: '#374151'
+                  }
+                }}
               />
               <Tooltip />
               {config.yAxis.map((yField, index) => (
@@ -208,7 +218,17 @@ export function AIQuerySection({}: AIQuerySectionProps) {
                 label={{ value: config.xAxis, position: 'insideBottom', offset: -20 }}
               />
               <YAxis 
-                label={{ value: config.yAxis.join(', '), angle: -90, position: 'insideLeft' }}
+                label={{ 
+                  value: config.yAxis.join(', '), 
+                  angle: -90, 
+                  position: 'insideLeft',
+                  style: { 
+                    textAnchor: 'middle',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    fill: '#374151'
+                  }
+                }}
               />
               <Tooltip />
               {config.yAxis.map((yField, index) => (
