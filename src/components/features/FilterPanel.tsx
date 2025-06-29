@@ -70,79 +70,81 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
       </div>
 
       {isOpen && (
-        <div className="space-y-6">
-          {/* Data Source Filters */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3 pb-1 border-b border-gray-200">
-              Data Source
-            </h4>
-            <div className="space-y-4">
-              {dataSourceFilters.map((config) => {
-                const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
-                const selectedValues = filters[config.key] || [];
+        <div className="max-h-[600px] overflow-y-auto">
+          <div className="space-y-6">
+            {/* Data Source Filters */}
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-900 mb-3 pb-1 border-b border-gray-300">
+                Data Source
+              </h4>
+              <div className="space-y-4">
+                {dataSourceFilters.map((config) => {
+                  const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
+                  const selectedValues = filters[config.key] || [];
 
-                return (
-                  <div key={config.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {config.label}
-                    </label>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {values.map((value) => (
-                        <label key={value} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedValues.includes(value)}
-                            onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">{value}</span>
-                        </label>
-                      ))}
+                  return (
+                    <div key={config.key}>
+                      <label className="block text-sm font-medium text-gray-800 mb-2">
+                        {config.label}
+                      </label>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {values.map((value) => (
+                          <label key={value} className="flex items-center hover:bg-gray-100 rounded px-1 py-0.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedValues.includes(value)}
+                              onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2 flex-shrink-0"
+                            />
+                            <span className="text-sm text-gray-800 min-w-0">{value}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* Data Quality Filters */}
-          <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3 pb-1 border-b border-gray-200">
-              Data Quality
-            </h4>
-            <div className="space-y-4">
-              {dataQualityFilters.map((config) => {
-                const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
-                const selectedValues = filters[config.key] || [];
+            {/* Data Quality Filters */}
+            <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-900 mb-3 pb-1 border-b border-gray-300">
+                Data Quality
+              </h4>
+              <div className="space-y-4">
+                {dataQualityFilters.map((config) => {
+                  const values = getUniqueValues(data, config.key as keyof DataQualityRecord);
+                  const selectedValues = filters[config.key] || [];
 
-                return (
-                  <div key={config.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {config.label}
-                    </label>
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {values.map((value) => (
-                        <label key={value} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedValues.includes(value)}
-                            onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">{value}</span>
-                        </label>
-                      ))}
+                  return (
+                    <div key={config.key}>
+                      <label className="block text-sm font-medium text-gray-800 mb-2">
+                        {config.label}
+                      </label>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {values.map((value) => (
+                          <label key={value} className="flex items-center hover:bg-gray-100 rounded px-1 py-0.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedValues.includes(value)}
+                              onChange={(e) => handleFilterChange(config.key, value, e.target.checked)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2 flex-shrink-0"
+                            />
+                            <span className="text-sm text-gray-800 min-w-0">{value}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {getFilterCount() > 0 && (
             <button
               onClick={clearAllFilters}
-              className="w-full text-sm text-gray-600 hover:text-gray-800 py-2 border-t pt-4"
+              className="w-full text-sm text-gray-600 hover:text-gray-800 py-2 border-t border-gray-200 mt-4 font-medium"
             >
               Clear All Filters
             </button>
