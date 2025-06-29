@@ -97,7 +97,7 @@ export const SystemHealthMatrix: React.FC<SystemHealthMatrixProps> = ({ data, fi
           No data available
         </div>
       ) : (
-        <div className="overflow-auto max-h-[600px] h-full">
+        <div className="overflow-auto h-full">
           <div className="min-w-full">
             {/* Legend */}
             <div className="mb-4 flex items-center gap-4">
