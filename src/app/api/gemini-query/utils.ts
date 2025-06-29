@@ -36,7 +36,6 @@ export function isAskingForClarification(text: string): boolean {
   const clarificationPhrases = [
     'need to know',
     'please specify',
-    'which dataset',
     'clarifying question',
     'could you please',
     'need more information',

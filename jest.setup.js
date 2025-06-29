@@ -1,5 +1,21 @@
 import '@testing-library/jest-dom'
 
+// Add TextEncoder/TextDecoder polyfills for Node.js environment
+if (typeof TextEncoder === 'undefined') {
+  global.TextEncoder = require('util').TextEncoder
+}
+if (typeof TextDecoder === 'undefined') {
+  global.TextDecoder = require('util').TextDecoder
+}
+
+// Add ReadableStream polyfill for Node.js environment
+if (typeof ReadableStream === 'undefined') {
+  const { ReadableStream, WritableStream, TransformStream } = require('web-streams-polyfill')
+  global.ReadableStream = ReadableStream
+  global.WritableStream = WritableStream
+  global.TransformStream = TransformStream
+}
+
 // Only set up browser-specific mocks when in jsdom environment
 if (typeof window !== 'undefined') {
   // Mock window.matchMedia

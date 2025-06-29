@@ -8,6 +8,7 @@ import { validateQuery, sanitizeQuery } from './validation';
 import { uploadCSVToGemini } from './fileUpload';
 import { createGeminiPrompt } from './prompts';
 import { callGeminiAPI } from './orchestrator';
+import { callGeminiAPILangChain } from './langchainOrchestrator';
 
 /**
  * Handles POST requests to the Gemini query API
@@ -42,8 +43,13 @@ export async function POST(
     // Create prompt for Gemini
     const prompt = createGeminiPrompt(sanitizedQuery, fileUri);
     
+    // Use LangChain implementation if feature flag is set
+    const useLangChain = process.env.USE_LANGCHAIN === 'true';
+    
     // Call Gemini API with smart routing
-    const chartResponse = await callGeminiAPI(prompt, sanitizedQuery, fileUri);
+    const chartResponse = useLangChain 
+      ? await callGeminiAPILangChain(prompt, sanitizedQuery, fileUri)
+      : await callGeminiAPI(prompt, sanitizedQuery, fileUri);
     
     return NextResponse.json(chartResponse);
     
