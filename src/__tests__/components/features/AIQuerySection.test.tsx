@@ -259,7 +259,7 @@ describe('AIQuerySection', () => {
     
     const createIssueButton = screen.getByRole('button', { name: /create issue/i });
     expect(createIssueButton).toBeInTheDocument();
-    expect(createIssueButton).toHaveClass('bg-green-600');
+    expect(createIssueButton).toHaveClass('bg-gradient-to-r', 'from-orange-500', 'to-orange-600');
   });
 
   it('opens the issue creation modal when Create Issue button is clicked', async () => {
