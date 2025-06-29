@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { UrgentAttentionItem } from '@/types';
 
 interface UrgentAttentionWidgetProps {
@@ -5,6 +6,11 @@ interface UrgentAttentionWidgetProps {
 }
 
 export function UrgentAttentionWidget({ items }: UrgentAttentionWidgetProps) {
+  const [showAllItems, setShowAllItems] = useState(false);
+  
+  const handleToggleView = () => {
+    setShowAllItems(!showAllItems);
+  };
   if (items.length === 0) {
     return (
       <div className="card">
@@ -31,7 +37,7 @@ export function UrgentAttentionWidget({ items }: UrgentAttentionWidgetProps) {
       </div>
       
       <div className="space-y-3">
-        {items.slice(0, 5).map((item, index) => (
+        {(showAllItems ? items : items.slice(0, 5)).map((item, index) => (
           <div
             key={`${item.dataset_name}-${item.source}-${index}`}
             className="p-4 bg-red-50 border border-red-200 rounded-lg"
@@ -61,8 +67,15 @@ export function UrgentAttentionWidget({ items }: UrgentAttentionWidgetProps) {
         
         {items.length > 5 && (
           <div className="text-center py-2">
-            <button className="text-sm text-blue-600 hover:text-blue-800">
-              View {items.length - 5} more issues →
+            <button 
+              onClick={handleToggleView}
+              className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+              aria-label={showAllItems ? 'Show fewer issues' : `View ${items.length - 5} more issues`}
+            >
+              {showAllItems 
+                ? 'Show fewer issues ↑' 
+                : `View ${items.length - 5} more issues →`
+              }
             </button>
           </div>
         )}
