@@ -83,12 +83,12 @@ export function ChartContainer({
               {filters}
             </div>
           )}
-          <div className={`flex-1 ${showFilters ? 'pr-4' : ''}`}>
+          <div className={`flex-1 overflow-hidden ${showFilters ? 'pr-4' : ''}`}>
             {children}
           </div>
         </div>
       ) : (
-        <div className={`${isFullscreen ? 'h-[calc(100vh-8rem)]' : ''}`}>
+        <div className={`${isFullscreen ? 'h-[calc(100vh-8rem)] overflow-hidden' : ''}`}>
           {children}
         </div>
       )}

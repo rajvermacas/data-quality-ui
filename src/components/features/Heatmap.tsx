@@ -84,7 +84,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, filters, filterPanel }) 
           No data available
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[600px] h-full">
           <div className="min-w-full">
             {/* Legend */}
             <div className="mb-4 flex items-center gap-4">
