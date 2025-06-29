@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, ReactNode } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { DataQualityRecord } from '@/types';
 import { filterData } from '@/lib/dataProcessor';
@@ -7,9 +7,10 @@ import { ChartContainer } from '@/components/ui/ChartContainer';
 interface TrendChartProps {
   data: DataQualityRecord[];
   filters: Record<string, string[]>;
+  filterPanel?: ReactNode;
 }
 
-export function TrendChart({ data, filters }: TrendChartProps) {
+export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
   const chartData = useMemo(() => {
     const filteredData = filterData(data, filters);
     
@@ -98,6 +99,7 @@ export function TrendChart({ data, filters }: TrendChartProps) {
     <ChartContainer
       title="Dataset Failure Rate Trends Over Time"
       description="Progression from 12 months to current month"
+      filters={filterPanel}
       actions={
         <button
           onClick={exportData}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, ReactNode } from 'react';
 import { DataQualityRecord, FilterState } from '../../types';
 import { filterData } from '../../lib/dataProcessor';
 import { ChartContainer } from '../ui/ChartContainer';
@@ -6,6 +6,7 @@ import { ChartContainer } from '../ui/ChartContainer';
 interface HeatmapProps {
   data: DataQualityRecord[];
   filters: FilterState;
+  filterPanel?: ReactNode;
 }
 
 interface HeatmapData {
@@ -15,7 +16,7 @@ interface HeatmapData {
   count: number;
 }
 
-export const Heatmap: React.FC<HeatmapProps> = ({ data, filters }) => {
+export const Heatmap: React.FC<HeatmapProps> = ({ data, filters, filterPanel }) => {
   const heatmapData = useMemo(() => {
     const filteredData = filterData(data, filters);
     
@@ -76,6 +77,7 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, filters }) => {
     <ChartContainer
       title="Data Quality Heatmap"
       description="Failure rates by source system and rule type"
+      filters={filterPanel}
     >
       {heatmapData.length === 0 ? (
         <div className="text-center py-8 text-gray-500">

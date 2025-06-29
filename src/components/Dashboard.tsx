@@ -10,6 +10,7 @@ import { FilterPanel } from '@/components/features/FilterPanel';
 import { Heatmap } from '@/components/features/Heatmap';
 import { SystemHealthMatrix } from '@/components/features/SystemHealthMatrix';
 import { AIQuerySection } from '@/components/features/AIQuerySection';
+import { ChartWithFilters } from '@/components/features/ChartWithFilters';
 
 interface DashboardState {
   data: DataQualityRecord[];
@@ -173,9 +174,33 @@ export function Dashboard() {
               </div>
 
               {/* Visualization Component */}
-              {activeView === 'trends' && <TrendChart data={state.data} filters={filters} />}
-              {activeView === 'heatmap' && <Heatmap data={state.data} filters={filters} />}
-              {activeView === 'matrix' && <SystemHealthMatrix data={state.data} filters={filters} />}
+              {activeView === 'trends' && (
+                <ChartWithFilters
+                  data={state.data}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                >
+                  <TrendChart data={state.data} filters={filters} />
+                </ChartWithFilters>
+              )}
+              {activeView === 'heatmap' && (
+                <ChartWithFilters
+                  data={state.data}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                >
+                  <Heatmap data={state.data} filters={filters} />
+                </ChartWithFilters>
+              )}
+              {activeView === 'matrix' && (
+                <ChartWithFilters
+                  data={state.data}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                >
+                  <SystemHealthMatrix data={state.data} filters={filters} />
+                </ChartWithFilters>
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ChartContainer } from '@/components/ui/ChartContainer';
+import '@testing-library/jest-dom';
 
 // Mock the useFullscreen hook
 const mockUseFullscreen = jest.fn();
@@ -170,5 +171,107 @@ describe('ChartContainer', () => {
 
     const contentWrapper = container.querySelector('.h-\\[calc\\(100vh-8rem\\)\\]');
     expect(contentWrapper).toBeInTheDocument();
+  });
+
+  it('should show filter toggle button in fullscreen mode when filters are provided', () => {
+    mockUseFullscreen.mockReturnValue({
+      isFullscreen: true,
+      toggleFullscreen: jest.fn(),
+      fullscreenEnabled: true,
+      enterFullscreen: jest.fn(),
+      exitFullscreen: jest.fn()
+    });
+
+    render(
+      <ChartContainer
+        {...defaultProps}
+        filters={<div data-testid="filter-panel">Filters</div>}
+      />
+    );
+
+    const filterToggleButton = screen.getByTitle('Show filters');
+    expect(filterToggleButton).toBeInTheDocument();
+  });
+
+  it('should not show filter toggle button when not in fullscreen mode', () => {
+    mockUseFullscreen.mockReturnValue({
+      isFullscreen: false,
+      toggleFullscreen: jest.fn(),
+      fullscreenEnabled: true,
+      enterFullscreen: jest.fn(),
+      exitFullscreen: jest.fn()
+    });
+
+    render(
+      <ChartContainer
+        {...defaultProps}
+        filters={<div data-testid="filter-panel">Filters</div>}
+      />
+    );
+
+    const filterToggleButton = screen.queryByTitle('Show filters');
+    expect(filterToggleButton).not.toBeInTheDocument();
+  });
+
+  it('should toggle filter panel visibility when filter button is clicked', () => {
+    mockUseFullscreen.mockReturnValue({
+      isFullscreen: true,
+      toggleFullscreen: jest.fn(),
+      fullscreenEnabled: true,
+      enterFullscreen: jest.fn(),
+      exitFullscreen: jest.fn()
+    });
+
+    render(
+      <ChartContainer
+        {...defaultProps}
+        filters={<div data-testid="filter-panel">Filters</div>}
+      />
+    );
+
+    // Initially filters should not be visible
+    expect(screen.queryByTestId('filter-panel')).not.toBeInTheDocument();
+
+    // Click to show filters
+    const filterToggleButton = screen.getByTitle('Show filters');
+    fireEvent.click(filterToggleButton);
+
+    // Filters should now be visible
+    expect(screen.getByTestId('filter-panel')).toBeInTheDocument();
+    expect(screen.getByTitle('Hide filters')).toBeInTheDocument();
+
+    // Click to hide filters
+    fireEvent.click(screen.getByTitle('Hide filters'));
+    expect(screen.queryByTestId('filter-panel')).not.toBeInTheDocument();
+  });
+
+  it('should show close button in filter panel', () => {
+    mockUseFullscreen.mockReturnValue({
+      isFullscreen: true,
+      toggleFullscreen: jest.fn(),
+      fullscreenEnabled: true,
+      enterFullscreen: jest.fn(),
+      exitFullscreen: jest.fn()
+    });
+
+    render(
+      <ChartContainer
+        {...defaultProps}
+        filters={<div data-testid="filter-panel">Filters</div>}
+      />
+    );
+
+    // Show filters
+    fireEvent.click(screen.getByTitle('Show filters'));
+
+    // Close button should be visible
+    const closeButton = screen.getByLabelText('Close filters');
+    expect(closeButton).toBeInTheDocument();
+
+    // Click close button
+    fireEvent.click(closeButton);
+
+    // Filters should be hidden
+    expect(screen.queryByTestId('filter-panel')).not.toBeInTheDocument();
   });
 });

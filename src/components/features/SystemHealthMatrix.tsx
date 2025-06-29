@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, ReactNode } from 'react';
 import { DataQualityRecord, FilterState } from '../../types';
 import { filterData } from '../../lib/dataProcessor';
 import { ChartContainer } from '../ui/ChartContainer';
@@ -6,6 +6,7 @@ import { ChartContainer } from '../ui/ChartContainer';
 interface SystemHealthMatrixProps {
   data: DataQualityRecord[];
   filters: FilterState;
+  filterPanel?: ReactNode;
 }
 
 interface HealthMetric {
@@ -16,7 +17,7 @@ interface HealthMetric {
   status: 'excellent' | 'good' | 'warning' | 'critical';
 }
 
-export const SystemHealthMatrix: React.FC<SystemHealthMatrixProps> = ({ data, filters }) => {
+export const SystemHealthMatrix: React.FC<SystemHealthMatrixProps> = ({ data, filters, filterPanel }) => {
   const healthMatrix = useMemo(() => {
     const filteredData = filterData(data, filters);
     
@@ -89,6 +90,7 @@ export const SystemHealthMatrix: React.FC<SystemHealthMatrixProps> = ({ data, fi
     <ChartContainer
       title="System Health Matrix"
       description="Overall health status of systems vs quality dimensions"
+      filters={filterPanel}
     >
       {healthMatrix.length === 0 ? (
         <div className="text-center py-8 text-gray-500">
