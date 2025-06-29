@@ -36,11 +36,15 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
     { key: 'rule_name', label: 'Rule Name', priority: 7 }
   ];
 
-  // Determine which filters to show based on available data
+  // Determine which filters to show based on original data and current selections
   const shouldShowTenantFilter = useMemo(() => {
-    const availableOptions = smartFilterResult.availableOptions.tenant_id || [];
-    return availableOptions.length > 1;
-  }, [smartFilterResult]);
+    // Show tenant filter if:
+    // 1. Multiple tenants exist in original data, OR
+    // 2. A tenant is already selected (so user can change/remove it)
+    const originalTenants = [...new Set(data.map(item => item.tenant_id))];
+    const hasSelectedTenant = filters.tenant_id && filters.tenant_id.length > 0;
+    return originalTenants.length > 1 || hasSelectedTenant;
+  }, [data, filters.tenant_id]);
 
   const handleFilterChange = (filterKey: string, value: string, checked: boolean) => {
     const currentValues = filters[filterKey] || [];
@@ -128,8 +132,8 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
 
   // Filter sections to show based on available data
   const visibleDataSourceFilters = dataSourceFilters.filter(config => {
-    if (config.key === 'tenant_id' && !shouldShowTenantFilter) {
-      return false;
+    if (config.key === 'tenant_id') {
+      return shouldShowTenantFilter;
     }
     const availableOptions = smartFilterResult.availableOptions[config.key] || [];
     return availableOptions.length > 0;
@@ -210,8 +214,13 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
                 </h4>
                 <div className="space-y-4">
                   {visibleDataSourceFilters.map((config) => {
-                    const availableValues = smartFilterResult.availableOptions[config.key] || [];
+                    let availableValues = smartFilterResult.availableOptions[config.key] || [];
                     const selectedValues = filters[config.key] || [];
+
+                    // Special handling for tenant filter - use original data if smart filter returns empty
+                    if (config.key === 'tenant_id' && availableValues.length === 0) {
+                      availableValues = [...new Set(data.map(item => item.tenant_id))].sort();
+                    }
 
                     return (
                       <FilterSection
@@ -219,7 +228,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
                         config={config}
                         availableValues={availableValues}
                         selectedValues={selectedValues}
-                        showCounts={true}
+                        showCounts={false}
                       />
                     );
                   })}
@@ -244,7 +253,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
                         config={config}
                         availableValues={availableValues}
                         selectedValues={selectedValues}
-                        showCounts={true}
+                        showCounts={false}
                       />
                     );
                   })}
