@@ -22,12 +22,11 @@ export function MetricsCards({ metrics, onTrendClick }: MetricsCardsProps) {
       clickable: false
     },
     {
-      title: 'Trending Down',
-      value: metrics.trendingDown.toLocaleString(),
-      icon: '📉',
-      color: 'green',
-      clickable: true,
-      trend: 'down' as const
+      title: 'Avg Failure Rate',
+      value: `${(metrics.averageFailRate * 100).toFixed(1)}%`,
+      icon: '📋',
+      color: 'gray',
+      clickable: false
     },
     {
       title: 'Trending Up',
@@ -46,11 +45,12 @@ export function MetricsCards({ metrics, onTrendClick }: MetricsCardsProps) {
       trend: 'equal' as const
     },
     {
-      title: 'Avg Failure Rate',
-      value: `${(metrics.averageFailRate * 100).toFixed(1)}%`,
-      icon: '📋',
-      color: 'gray',
-      clickable: false
+      title: 'Trending Down',
+      value: metrics.trendingDown.toLocaleString(),
+      icon: '📉',
+      color: 'green',
+      clickable: true,
+      trend: 'down' as const
     }
   ];
 
