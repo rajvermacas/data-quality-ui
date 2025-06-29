@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
-import { DataQualityRecord } from '@/types';
+import { DataQualityRecord, FilterState, IntervalFilter } from '@/types';
 import { getFilteredUniqueValues, getFilterValueCounts, getSmartFilterOptions } from '@/lib/dataProcessor';
 
 interface FilterPanelProps {
   data: DataQualityRecord[];
-  filters: Record<string, string[]>;
-  onFiltersChange: (filters: Record<string, string[]>) => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
 }
 
 interface FilterConfig {
@@ -47,28 +47,37 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
   }, [data, filters.tenant_id]);
 
   const handleFilterChange = (filterKey: string, value: string, checked: boolean) => {
-    const currentValues = filters[filterKey] || [];
+    if (filterKey === 'interval') return; // Handle interval separately
+    
+    const currentValues = (filters[filterKey as keyof FilterState] as string[]) || [];
     const newValues = checked
       ? [...currentValues, value]
       : currentValues.filter(v => v !== value);
 
     const updatedFilters = { ...filters };
     if (newValues.length > 0) {
-      updatedFilters[filterKey] = newValues;
+      (updatedFilters as any)[filterKey] = newValues;
     } else {
-      delete updatedFilters[filterKey];
+      delete (updatedFilters as any)[filterKey];
     }
     
     onFiltersChange(updatedFilters);
   };
 
+  const handleIntervalChange = (interval: IntervalFilter) => {
+    onFiltersChange({ ...filters, interval });
+  };
+
   const clearAllFilters = () => {
-    onFiltersChange({});
+    onFiltersChange({ interval: 'all' });
   };
 
   const getFilterCount = () => {
     return Object.entries(filters).reduce((count, [key, values]) => {
-      return count + (values?.length || 0);
+      if (key === 'interval') {
+        return count + (values !== 'all' ? 1 : 0);
+      }
+      return count + (Array.isArray(values) ? values.length : 0);
     }, 0);
   };
 
@@ -206,6 +215,41 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
       {isOpen && (
         <div className="max-h-[600px] overflow-y-auto">
           <div className="space-y-6">
+            {/* Interval Filter */}
+            <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+              <h4 className="text-sm font-medium text-gray-900 mb-3 pb-1 border-b border-blue-300">
+                ⏱️ Time Interval
+              </h4>
+              <div className="space-y-2">
+                {[
+                  { value: 'all' as IntervalFilter, label: 'All Periods', description: 'Show data from all time periods' },
+                  { value: '1m' as IntervalFilter, label: '1 Month', description: 'Last 1 month data only' },
+                  { value: '3m' as IntervalFilter, label: '3 Months', description: 'Last 3 months data only' },
+                  { value: '12m' as IntervalFilter, label: '12 Months', description: 'Last 12 months data only' }
+                ].map((option) => (
+                  <label 
+                    key={option.value}
+                    className={`flex items-start hover:bg-blue-100 rounded px-2 py-2 cursor-pointer transition-colors ${
+                      filters.interval === option.value ? 'bg-blue-100 border border-blue-300' : 'border border-transparent'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="interval"
+                      value={option.value}
+                      checked={filters.interval === option.value}
+                      onChange={() => handleIntervalChange(option.value)}
+                      className="mt-0.5 mr-3 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-800">{option.label}</div>
+                      <div className="text-xs text-gray-600 mt-0.5">{option.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Data Source Filters */}
             {visibleDataSourceFilters.length > 0 && (
               <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
@@ -215,7 +259,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
                 <div className="space-y-4">
                   {visibleDataSourceFilters.map((config) => {
                     let availableValues = smartFilterResult.availableOptions[config.key] || [];
-                    const selectedValues = filters[config.key] || [];
+                    const selectedValues = (filters[config.key as keyof FilterState] as string[]) || [];
 
                     // Special handling for tenant filter - use original data if smart filter returns empty
                     if (config.key === 'tenant_id' && availableValues.length === 0) {
@@ -245,7 +289,7 @@ export function FilterPanel({ data, filters, onFiltersChange }: FilterPanelProps
                 <div className="space-y-4">
                   {visibleDataQualityFilters.map((config) => {
                     const availableValues = smartFilterResult.availableOptions[config.key] || [];
-                    const selectedValues = filters[config.key] || [];
+                    const selectedValues = (filters[config.key as keyof FilterState] as string[]) || [];
 
                     return (
                       <FilterSection

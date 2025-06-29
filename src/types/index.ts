@@ -28,7 +28,9 @@ export interface DataQualityRecord {
   last_execution_level: string;
 }
 
-export interface FilterState extends Record<string, string[] | undefined> {
+export type IntervalFilter = 'all' | '1m' | '3m' | '12m';
+
+export interface FilterState {
   source?: string[];
   dataset_name?: string[];
   rule_type?: string[];
@@ -36,6 +38,7 @@ export interface FilterState extends Record<string, string[] | undefined> {
   tenant_id?: string[];
   trend_flag?: string[];
   rule_name?: string[];
+  interval?: IntervalFilter;
 }
 
 export interface TrendData {

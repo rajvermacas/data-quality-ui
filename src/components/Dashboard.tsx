@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem } from '@/types';
+import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem, FilterState, IntervalFilter } from '@/types';
 import { processCSVData, calculateDashboardMetrics, getUrgentAttentionItems } from '@/lib/dataProcessor';
 import { MetricsCards } from '@/components/features/MetricsCards';
 import { UrgentAttentionWidget } from '@/components/features/UrgentAttentionWidget';
@@ -36,7 +36,7 @@ export function Dashboard() {
     error: null
   });
 
-  const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [filters, setFilters] = useState<FilterState>({ interval: 'all' });
   const [activeView, setActiveView] = useState<'trends' | 'heatmap' | 'matrix'>('trends');
   const trendChartRef = useRef<HTMLDivElement>(null);
 

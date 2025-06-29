@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem } from '@/types';
+import { DataQualityRecord, DashboardMetrics, UrgentAttentionItem, FilterState, IntervalFilter } from '@/types';
 import { getAvailableFilterOptions, SmartFilterResult } from './smartFilterEngine';
 
 export function processCSVData(csvString: string): DataQualityRecord[] {
@@ -97,13 +97,70 @@ export function getUrgentAttentionItems(data: DataQualityRecord[]): UrgentAttent
     .sort((a, b) => b.fail_rate_1m - a.fail_rate_1m);
 }
 
-export function filterData(data: DataQualityRecord[], filters: Record<string, string[] | undefined>): DataQualityRecord[] {
+export function filterData(data: DataQualityRecord[], filters: FilterState): DataQualityRecord[] {
   return data.filter(item => {
     return Object.entries(filters).every(([key, values]) => {
-      if (!values || values.length === 0) return true;
-      return values.includes(item[key as keyof DataQualityRecord] as string);
+      // Handle interval filter specially
+      if (key === 'interval') {
+        return applyIntervalFilter(item, values as IntervalFilter);
+      }
+      
+      // Handle regular array filters
+      if (!values || (Array.isArray(values) && values.length === 0)) return true;
+      if (Array.isArray(values)) {
+        return values.includes(item[key as keyof DataQualityRecord] as string);
+      }
+      
+      return true;
     });
   });
+}
+
+/**
+ * Apply interval filter to determine which failure rate to use
+ */
+function applyIntervalFilter(item: DataQualityRecord, interval: IntervalFilter): boolean {
+  // For 'all', we don't filter out any records
+  if (interval === 'all') return true;
+  
+  // For specific intervals, we're not filtering records out,
+  // but rather indicating which failure rate column to prioritize in visualizations
+  // The actual filtering is handled in the chart components
+  return true;
+}
+
+/**
+ * Get the appropriate failure rate based on interval filter
+ */
+export function getFailureRateForInterval(item: DataQualityRecord, interval: IntervalFilter): number {
+  switch (interval) {
+    case '1m':
+      return item.fail_rate_1m;
+    case '3m':
+      return item.fail_rate_3m;
+    case '12m':
+      return item.fail_rate_12m;
+    case 'all':
+    default:
+      return item.fail_rate_total;
+  }
+}
+
+/**
+ * Get the appropriate pass/fail counts based on interval filter
+ */
+export function getCountsForInterval(item: DataQualityRecord, interval: IntervalFilter): { passCount: number; failCount: number } {
+  switch (interval) {
+    case '1m':
+      return { passCount: item.pass_count_1m, failCount: item.fail_count_1m };
+    case '3m':
+      return { passCount: item.pass_count_3m, failCount: item.fail_count_3m };
+    case '12m':
+      return { passCount: item.pass_count_12m, failCount: item.fail_count_12m };
+    case 'all':
+    default:
+      return { passCount: item.pass_count_total, failCount: item.fail_count_total };
+  }
 }
 
 export function getUniqueValues(data: DataQualityRecord[], field: keyof DataQualityRecord): string[] {
@@ -118,11 +175,11 @@ export function getUniqueValues(data: DataQualityRecord[], field: keyof DataQual
 export function getFilteredUniqueValues(
   data: DataQualityRecord[], 
   field: keyof DataQualityRecord,
-  currentFilters: Record<string, string[]>
+  currentFilters: FilterState
 ): string[] {
   // First apply existing filters (excluding the target field)
   const filtersWithoutTarget = { ...currentFilters };
-  delete filtersWithoutTarget[field as string];
+  delete (filtersWithoutTarget as any)[field as string];
   
   const filteredData = filterData(data, filtersWithoutTarget);
   return getUniqueValues(filteredData, field);
@@ -133,7 +190,7 @@ export function getFilteredUniqueValues(
  */
 export function getSmartFilterOptions(
   data: DataQualityRecord[],
-  currentFilters: Record<string, string[]>
+  currentFilters: FilterState
 ): SmartFilterResult {
   return getAvailableFilterOptions(data, currentFilters);
 }
@@ -143,7 +200,7 @@ export function getSmartFilterOptions(
  */
 export function hasDataForFilters(
   data: DataQualityRecord[],
-  filters: Record<string, string[]>
+  filters: FilterState
 ): boolean {
   const filteredData = filterData(data, filters);
   return filteredData.length > 0;
@@ -156,10 +213,10 @@ export function hasDataForFilters(
 export function getFilterValueCounts(
   data: DataQualityRecord[],
   field: keyof DataQualityRecord,
-  currentFilters: Record<string, string[]>
+  currentFilters: FilterState
 ): Record<string, number> {
   const filtersWithoutTarget = { ...currentFilters };
-  delete filtersWithoutTarget[field as string];
+  delete (filtersWithoutTarget as any)[field as string];
   
   const filteredData = filterData(data, filtersWithoutTarget);
   const counts: Record<string, number> = {};

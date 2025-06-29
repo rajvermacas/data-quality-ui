@@ -95,7 +95,7 @@ TEST_SYSTEM,tenant_001,ds001,Test Dataset,1,TEST_RULE,BUSINESS_RULE,Validity,Tes
       expect(metrics.urgentAttentionCount).toBe(1); // Only one with >= 20% failure rate
       expect(metrics.trendingDown).toBe(1);
       expect(metrics.trendingUp).toBe(1);
-      expect(metrics.stable).toBe(0);
+      expect(metrics.trendingFlat).toBe(0);
     });
 
     it('should handle empty data array', () => {

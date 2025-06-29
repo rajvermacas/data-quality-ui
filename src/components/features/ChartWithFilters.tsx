@@ -2,12 +2,12 @@
 
 import React, { ReactElement, cloneElement } from 'react';
 import { FilterPanel } from './FilterPanel';
-import { DataQualityRecord } from '@/types';
+import { DataQualityRecord, FilterState } from '@/types';
 
 interface ChartWithFiltersProps {
   data: DataQualityRecord[];
-  filters: Record<string, string[]>;
-  onFiltersChange: (filters: Record<string, string[]>) => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
   children: ReactElement<any>;
 }
 

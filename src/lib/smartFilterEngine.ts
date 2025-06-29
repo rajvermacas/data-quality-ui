@@ -1,4 +1,4 @@
-import { DataQualityRecord } from '@/types';
+import { DataQualityRecord, FilterState, IntervalFilter } from '@/types';
 
 /**
  * Smart Filter Engine for dynamic filter option computation
@@ -24,7 +24,7 @@ export interface SmartFilterResult {
  */
 export function getAvailableFilterOptions(
   data: DataQualityRecord[],
-  currentFilters: Record<string, string[]>
+  currentFilters: FilterState
 ): SmartFilterResult {
   // First, filter data based on current selections
   const filteredData = applyCurrentFilters(data, currentFilters);
@@ -63,12 +63,12 @@ export function getAvailableFilterOptions(
  */
 export function getSmartOptionsForField(
   data: DataQualityRecord[],
-  currentFilters: Record<string, string[]>,
+  currentFilters: FilterState,
   targetField: keyof DataQualityRecord
 ): string[] {
   // Create a copy of filters without the target field
   const filtersWithoutTarget = { ...currentFilters };
-  delete filtersWithoutTarget[targetField as string];
+  delete (filtersWithoutTarget as any)[targetField as string];
   
   // Filter data without the target field
   const filteredData = applyCurrentFilters(data, filtersWithoutTarget);
@@ -82,7 +82,7 @@ export function getSmartOptionsForField(
  */
 export function validateFilterCombination(
   data: DataQualityRecord[],
-  filters: Record<string, string[]>
+  filters: FilterState
 ): boolean {
   const filteredData = applyCurrentFilters(data, filters);
   return filteredData.length > 0;
@@ -93,7 +93,7 @@ export function validateFilterCombination(
  */
 export function getSuggestedFilters(
   data: DataQualityRecord[],
-  currentFilters: Record<string, string[]>
+  currentFilters: FilterState
 ): { field: string; values: string[] }[] {
   const suggestions: { field: string; values: string[] }[] = [];
   
@@ -101,8 +101,10 @@ export function getSuggestedFilters(
   const filterKeys = Object.keys(currentFilters);
   
   for (const key of filterKeys) {
+    if (key === 'interval') continue; // Skip interval filter for suggestions
+    
     const modifiedFilters = { ...currentFilters };
-    delete modifiedFilters[key];
+    delete (modifiedFilters as any)[key];
     
     const filteredData = applyCurrentFilters(data, modifiedFilters);
     if (filteredData.length > 0) {
@@ -156,9 +158,12 @@ export function getFilterHierarchy(): string[] {
 /**
  * Check if filters should be applied in hierarchical order
  */
-export function shouldApplyHierarchicalFiltering(filters: Record<string, string[]>): boolean {
+export function shouldApplyHierarchicalFiltering(filters: FilterState): boolean {
   const hierarchy = getFilterHierarchy();
-  const activeFilters = Object.keys(filters).filter(key => filters[key]?.length > 0);
+  const activeFilters = Object.keys(filters).filter(key => {
+    if (key === 'interval') return (filters as any)[key] !== 'all';
+    return Array.isArray((filters as any)[key]) && ((filters as any)[key] as string[]).length > 0;
+  });
   
   // Apply hierarchical filtering if we have filters from different levels
   return hierarchy.some(level => activeFilters.includes(level));
@@ -169,13 +174,25 @@ export function shouldApplyHierarchicalFiltering(filters: Record<string, string[
  */
 function applyCurrentFilters(
   data: DataQualityRecord[],
-  filters: Record<string, string[]>
+  filters: FilterState
 ): DataQualityRecord[] {
   return data.filter(record => {
     return Object.entries(filters).every(([key, values]) => {
-      if (!values || values.length === 0) return true;
-      const recordValue = record[key as keyof DataQualityRecord] as string;
-      return values.includes(recordValue);
+      // Handle interval filter specially
+      if (key === 'interval') {
+        // For interval filtering, we don't filter out records
+        // but rather determine which failure rate to use in visualizations
+        return true;
+      }
+      
+      // Handle regular array filters
+      if (!values || (Array.isArray(values) && values.length === 0)) return true;
+      if (Array.isArray(values)) {
+        const recordValue = record[key as keyof DataQualityRecord] as string;
+        return values.includes(recordValue);
+      }
+      
+      return true;
     });
   });
 }
@@ -193,7 +210,7 @@ function getUniqueValues(data: DataQualityRecord[], field: keyof DataQualityReco
  */
 export function getFilterStatistics(
   data: DataQualityRecord[],
-  filters: Record<string, string[]>
+  filters: FilterState
 ): {
   totalRecords: number;
   filteredRecords: number;
@@ -201,9 +218,12 @@ export function getFilterStatistics(
   activeFilters: number;
 } {
   const filteredData = applyCurrentFilters(data, filters);
-  const activeFilters = Object.values(filters).reduce((count, values) => 
-    count + (values?.length || 0), 0
-  );
+  const activeFilters = Object.entries(filters).reduce((count, [key, values]) => {
+    if (key === 'interval') {
+      return count + (values !== 'all' ? 1 : 0);
+    }
+    return count + (Array.isArray(values) ? (values as string[]).length : 0);
+  }, 0);
   
   return {
     totalRecords: data.length,

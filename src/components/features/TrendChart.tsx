@@ -1,7 +1,7 @@
 import { useMemo, ReactNode } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { DataQualityRecord } from '@/types';
-import { filterData } from '@/lib/dataProcessor';
+import { DataQualityRecord, FilterState, IntervalFilter } from '@/types';
+import { filterData, getFailureRateForInterval } from '@/lib/dataProcessor';
 import { ChartContainer } from '@/components/ui/ChartContainer';
 
 // Utility function to create shorter, cleaner system names
@@ -62,7 +62,7 @@ function CustomLegend({ datasets, colors }: CustomLegendProps) {
 
 interface TrendChartProps {
   data: DataQualityRecord[];
-  filters: Record<string, string[]>;
+  filters: FilterState;
   filterPanel?: ReactNode;
 }
 
@@ -86,6 +86,7 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
 
   const chartData = useMemo(() => {
     const filteredData = filterData(data, filters);
+    const intervalFilter = filters.interval || 'all';
     
     // Aggregate data by dataset for trend comparison
     const aggregated = filteredData.reduce((acc, record) => {
@@ -97,6 +98,7 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
           fail_rate_1m: 0,
           fail_rate_3m: 0,
           fail_rate_12m: 0,
+          fail_rate_total: 0,
           count: 0
         };
       }
@@ -104,22 +106,47 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
       acc[key].fail_rate_1m += record.fail_rate_1m;
       acc[key].fail_rate_3m += record.fail_rate_3m;
       acc[key].fail_rate_12m += record.fail_rate_12m;
+      acc[key].fail_rate_total += record.fail_rate_total;
       acc[key].count += 1;
       
       return acc;
     }, {} as Record<string, any>);
 
-    // Get top datasets by average failure rate
+    // Get top datasets by average failure rate (using selected interval for sorting)
     const datasets = Object.values(aggregated)
       .map((item: any) => ({
         dataset: item.dataset,
-        avgFailRate: ((item.fail_rate_1m + item.fail_rate_3m + item.fail_rate_12m) / (item.count * 3)),
+        avgFailRate: intervalFilter === 'all' 
+          ? ((item.fail_rate_1m + item.fail_rate_3m + item.fail_rate_12m) / (item.count * 3))
+          : getFailureRateForInterval({
+              fail_rate_1m: item.fail_rate_1m / item.count,
+              fail_rate_3m: item.fail_rate_3m / item.count,
+              fail_rate_12m: item.fail_rate_12m / item.count,
+              fail_rate_total: item.fail_rate_total / item.count,
+            } as DataQualityRecord, intervalFilter),
         fail_rate_1m: (item.fail_rate_1m / item.count * 100),
         fail_rate_3m: (item.fail_rate_3m / item.count * 100),
-        fail_rate_12m: (item.fail_rate_12m / item.count * 100)
+        fail_rate_12m: (item.fail_rate_12m / item.count * 100),
+        fail_rate_total: (item.fail_rate_total / item.count * 100)
       }))
       .sort((a, b) => b.avgFailRate - a.avgFailRate)
       .slice(0, 10); // Limit to top 10 for readability
+
+    // If specific interval is selected, show only that time period
+    if (intervalFilter !== 'all') {
+      const timeSeriesData = [
+        {
+          period: intervalFilter === '1m' ? '1 Month' : intervalFilter === '3m' ? '3 Months' : '12 Months',
+          ...datasets.reduce((acc, dataset) => {
+            const rate = intervalFilter === '1m' ? dataset.fail_rate_1m : 
+                        intervalFilter === '3m' ? dataset.fail_rate_3m : dataset.fail_rate_12m;
+            acc[dataset.dataset] = rate;
+            return acc;
+          }, {} as Record<string, number>)
+        }
+      ];
+      return { timeSeriesData, datasets };
+    }
 
     // Convert to time-series format with chronological order (12M → 3M → 1M)
     const timeSeriesData = [
@@ -169,13 +196,38 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
     URL.revokeObjectURL(url);
   };
 
-  const chartTitle = trendFilter 
-    ? `Dataset Failure Rate Trends Over Time - ${getTrendDisplayText(trendFilter)}` 
-    : "Dataset Failure Rate Trends Over Time";
+  const intervalFilter = filters.interval || 'all';
+  const getIntervalDisplayText = (interval: IntervalFilter) => {
+    switch (interval) {
+      case '1m': return 'Last 1 Month';
+      case '3m': return 'Last 3 Months';
+      case '12m': return 'Last 12 Months';
+      case 'all': return 'All Time Periods';
+      default: return 'All Time Periods';
+    }
+  };
+
+  const chartTitle = (() => {
+    let title = "Dataset Failure Rate Trends";
+    if (intervalFilter !== 'all') {
+      title += ` - ${getIntervalDisplayText(intervalFilter)}`;
+    }
+    if (trendFilter) {
+      title += ` - ${getTrendDisplayText(trendFilter)}`;
+    }
+    return title;
+  })();
   
-  const chartDescription = trendFilter 
-    ? `Progression from 12 months to current month, showing datasets that are ${getTrendDisplayText(trendFilter).toLowerCase()}`
-    : "Progression from 12 months to current month";
+  const chartDescription = (() => {
+    let desc = intervalFilter === 'all' 
+      ? "Progression from 12 months to current month"
+      : `Failure rates for ${getIntervalDisplayText(intervalFilter).toLowerCase()}`;
+    
+    if (trendFilter) {
+      desc += `, showing datasets that are ${getTrendDisplayText(trendFilter).toLowerCase()}`;
+    }
+    return desc;
+  })();
 
   return (
     <ChartContainer
@@ -184,9 +236,14 @@ export function TrendChart({ data, filters, filterPanel }: TrendChartProps) {
       filters={filterPanel}
       actions={
         <div className="flex items-center gap-2">
+          {intervalFilter !== 'all' && (
+            <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">
+              Interval: {getIntervalDisplayText(intervalFilter)}
+            </span>
+          )}
           {trendFilter && (
             <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-              Filter: {getTrendDisplayText(trendFilter)}
+              Trend: {getTrendDisplayText(trendFilter)}
             </span>
           )}
           <button
