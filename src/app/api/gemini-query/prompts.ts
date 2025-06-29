@@ -33,8 +33,8 @@ Required JSON format (must be complete and valid):
   "title": "Descriptive chart title",
   "data": [
     {
-      "xAxisField": value,
-      "yAxisField": value
+      "field_name_for_x_axis": value,
+      "field_name_for_y_axis": value
     }
   ],
   "config": {
@@ -89,11 +89,10 @@ Create a complete chart response with:
 5. Insights from the analysis
 
 CRITICAL for data array:
-- Each object MUST have exactly two properties: "x" (string) and "y" (number)
-- Map your x-axis values to the "x" property
-- Map your y-axis values to the "y" property
-- Example: {"x": "Dataset A", "y": 0.25}
-- Do NOT use actual field names like "dataset_name" or "fail_rate_1m" in data objects
+- Each data object MUST use the exact field names specified in config.xAxis and config.yAxis
+- The data object keys must EXACTLY match the field names in the config
+- Example: If config has "xAxis": "Dataset", "yAxis": ["Failure Rate"], then data should be: {"Dataset": "Dataset A", "Failure Rate": 0.25}
+- Data field names and config field names MUST be identical for proper chart rendering
 
 Generate ONLY valid JSON, no markdown or extra text`;
 }

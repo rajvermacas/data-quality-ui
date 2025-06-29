@@ -29,9 +29,7 @@ export async function callGeminiAPILangChain(
     // Step 1: Get raw response with code execution (using hybrid approach)
     console.log('Step 1: Using code execution for analysis');
     rawResponseText = await withRetry(
-      () => callGeminiWithCodeExecutionLC(prompt, fileUri),
-      3,
-      1000
+      () => callGeminiWithCodeExecutionLC(prompt, fileUri)
     );
     
     console.log('Raw LangChain Gemini code execution response:', rawResponseText);
@@ -78,9 +76,7 @@ export async function callGeminiAPILangChain(
       try {
         // Fallback to direct structured API call without code execution
         const fallbackResponse = await withRetry(
-          () => callGeminiDirectStructuredLC(query, fileUri),
-          3,
-          1000
+          () => callGeminiDirectStructuredLC(query, fileUri)
         );
         console.log('Fallback LangChain Gemini API response:', fallbackResponse);
         console.log('Fallback succeeded, returning response');
@@ -102,9 +98,7 @@ export async function callGeminiAPILangChain(
     // Create a prompt for structured output that includes the code execution results
     const structuredPrompt = createStructuredFormattingPrompt(query, rawResponseText);
     const structuredResponse = await withRetry(
-      () => callGeminiWithStructuredOutputLC(structuredPrompt, fileUri),
-      3,
-      1000
+      () => callGeminiWithStructuredOutputLC(structuredPrompt, fileUri)
     );
     
     console.log('Two-step LangChain process successful!');

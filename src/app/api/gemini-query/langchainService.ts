@@ -9,6 +9,8 @@ import { RunnableSequence } from '@langchain/core/runnables';
 import { z } from 'zod';
 import { AIChartResponse } from '@/types';
 import { HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
+import { validateChartResponse } from './responseHandlers';
+import { MAX_RETRIES, RETRY_DELAYS, getRetryDelayWithJitter } from './utils';
 
 // Schema for structured output validation
 const ChartResponseSchema = z.object({
@@ -36,32 +38,78 @@ export type ChartResponseType = z.infer<typeof ChartResponseSchema>;
  * Handles various response content formats from Gemini
  */
 function extractTextFromResponse(content: any): string {
+  console.log('=== EXTRACT TEXT DEBUG ===');
+  console.log('Input content type:', typeof content);
+  console.log('Input content:', content);
+  
   if (typeof content === 'string') {
+    console.log('✅ Content is already a string');
     return content;
   }
   
   if (Array.isArray(content)) {
+    console.log('Content is an array with length:', content.length);
     let responseText = '';
-    for (const part of content) {
+    for (let i = 0; i < content.length; i++) {
+      const part = content[i];
+      console.log(`Array item ${i}:`, part);
+      console.log(`Array item ${i} type:`, typeof part);
+      
       if (typeof part === 'string') {
         responseText += part;
-      } else if (part && typeof part === 'object' && 'text' in part) {
-        responseText += part.text;
+      } else if (part && typeof part === 'object') {
+        // Handle different object structures
+        if ('text' in part) {
+          console.log(`Found text property in item ${i}:`, part.text);
+          responseText += part.text;
+        } else if ('content' in part) {
+          console.log(`Found content property in item ${i}:`, part.content);
+          responseText += extractTextFromResponse(part.content); // Recursive call
+        } else if ('message' in part && part.message && 'content' in part.message) {
+          console.log(`Found message.content in item ${i}:`, part.message.content);
+          responseText += extractTextFromResponse(part.message.content); // Recursive call
+        } else {
+          // Try to serialize the object
+          console.log(`Attempting to serialize object item ${i}`);
+          try {
+            const serialized = JSON.stringify(part);
+            if (serialized && serialized !== '{}' && serialized !== 'null') {
+              responseText += serialized;
+            }
+          } catch (serError) {
+            console.warn(`Failed to serialize item ${i}:`, serError);
+          }
+        }
       }
     }
+    
+    console.log('Extracted text from array:', responseText);
     if (responseText) {
       return responseText;
     }
   }
   
   // Fallback for other content types
-  if (content && typeof content === 'object' && 'text' in content) {
-    return content.text;
+  if (content && typeof content === 'object') {
+    if ('text' in content) {
+      console.log('Found text property in object:', content.text);
+      return content.text;
+    } else if ('content' in content) {
+      console.log('Found content property in object:', content.content);
+      return extractTextFromResponse(content.content); // Recursive call
+    } else if ('message' in content && content.message && 'content' in content.message) {
+      console.log('Found message.content in object:', content.message.content);
+      return extractTextFromResponse(content.message.content); // Recursive call
+    }
   }
   
-  // Last resort - convert to string, but throw if empty
+  // Last resort - convert to string, but log what we're doing
+  console.log('Using last resort string conversion');
   const result = String(content || '');
-  if (!result.trim()) {
+  console.log('String conversion result:', result);
+  console.log('=== END EXTRACT TEXT DEBUG ===');
+  
+  if (!result.trim() || result === '[object Object]') {
     throw new Error('No text content found in LangChain response');
   }
   
@@ -264,16 +312,13 @@ export async function callGeminiWithStructuredOutputLC(
 }
 
 /**
- * Direct structured query without code execution using LangChain
+ * Direct structured query without code execution using LangChain with hybrid approach
  */
 export async function callGeminiDirectStructuredLC(
   query: string,
   fileUri?: string
 ): Promise<AIChartResponse> {
   const model = getGeminiModel({ temperature: 0.5, maxOutputTokens: 4096 });
-  
-  // Use JSON output parser for simpler parsing
-  const parser = new JsonOutputParser<AIChartResponse>();
   
   const systemPrompt = `You are a data analysis assistant that responds with JSON formatted data visualization configurations.
     ${fileUri ? `You have access to a CSV file at: ${fileUri}.` : ''}
@@ -292,59 +337,148 @@ export async function callGeminiDirectStructuredLC(
     new HumanMessage(query)
   ];
   
-  const chain = RunnableSequence.from([
-    () => messages,
-    model,
-    parser
-  ]);
-  
+  // Attempt 1: Try withStructuredOutput (preferred method)
   try {
-    const response = await chain.invoke({});
+    console.log('Attempting structured output with withStructuredOutput()');
+    const structuredModel = model.withStructuredOutput(ChartResponseSchema, {
+      name: "chart_response"
+    });
     
-    // Validate response structure
-    if (!response.chartType || !response.title || !response.data || !response.config) {
-      throw new Error('Invalid response structure from LangChain');
+    const response = await withRetry(() => structuredModel.invoke(messages));
+    console.log('Successfully used withStructuredOutput() with retry logic');
+    
+    // Enhanced logging for debugging
+    console.log('=== LANGCHAIN withStructuredOutput RESPONSE ===');
+    console.log('Raw response from withStructuredOutput:', JSON.stringify(response, null, 2));
+    console.log('Response type:', typeof response);
+    console.log('Response data:', response?.data);
+    console.log('Response config:', response?.config);
+    console.log('=== END withStructuredOutput RESPONSE ===');
+    
+    // Validate and normalize the response
+    const validatedResponse = validateAndNormalizeResponse(response);
+    console.log('✅ withStructuredOutput response validated successfully');
+    return validatedResponse;
+    
+  } catch (structuredError: any) {
+    console.warn('withStructuredOutput() failed, falling back to JsonOutputParser:', structuredError.message);
+    
+    // Check if this is a known LangChain.js issue with Google Gemini structured output
+    if (structuredError.message?.includes('No parseable tool calls') || 
+        structuredError.message?.includes('withStructuredOutput') ||
+        structuredError.message?.includes('GoogleGenerativeAIToolsOutputParser')) {
+      console.log('Detected known LangChain.js Google Gemini structured output issue');
     }
     
-    // Normalize filters
-    if (!Array.isArray(response.filters)) {
-      response.filters = [];
-    } else {
-      response.filters = response.filters.map((filter: any) => ({
-        field: filter.field || '',
-        label: filter.label || filter.field || 'Unknown',
-        values: Array.isArray(filter.values) ? filter.values : []
-      }));
+    // Check if this is a rate limiting or API configuration error
+    if (structuredError.message?.includes('API key not configured')) {
+      throw structuredError; // Let configuration errors bubble up immediately
     }
     
-    return response as AIChartResponse;
-  } catch (error) {
-    console.error('LangChain direct structured error:', error);
-    throw error;
+    if (structuredError.message?.includes('rate limit') || 
+        structuredError.message?.includes('quota exceeded') ||
+        structuredError.message?.includes('429')) {
+      console.log('Rate limiting detected, error will be handled by retry logic');
+    }
+    
+    // Attempt 2: Fallback to JsonOutputParser (current method)
+    try {
+      console.log('Using fallback JsonOutputParser approach');
+      const parser = new JsonOutputParser<AIChartResponse>();
+      
+      const chain = RunnableSequence.from([
+        () => messages,
+        model,
+        parser
+      ]);
+      
+      const response = await withRetry(() => chain.invoke({}));
+      console.log('Successfully used JsonOutputParser fallback with retry logic');
+      
+      // Enhanced logging for debugging
+      console.log('=== LANGCHAIN JsonOutputParser RESPONSE ===');
+      console.log('Raw response from JsonOutputParser:', JSON.stringify(response, null, 2));
+      console.log('Response type:', typeof response);
+      console.log('Response data:', response?.data);
+      console.log('Response config:', response?.config);
+      console.log('=== END JsonOutputParser RESPONSE ===');
+      
+      // Validate and normalize the response
+      const validatedResponse = validateAndNormalizeResponse(response);
+      console.log('✅ JsonOutputParser response validated successfully');
+      return validatedResponse;
+      
+    } catch (fallbackError: any) {
+      console.error('Both structured output methods failed');
+      console.error('withStructuredOutput error:', structuredError);
+      console.error('JsonOutputParser fallback error:', fallbackError);
+      
+      // Provide specific error messages based on error types
+      if (fallbackError.message?.includes('API key not configured')) {
+        throw new Error('Gemini API key not configured');
+      }
+      
+      if (fallbackError.message?.includes('rate limit') || 
+          fallbackError.message?.includes('quota exceeded')) {
+        throw new Error('API rate limit exceeded. Please try again later.');
+      }
+      
+      if (fallbackError.message?.includes('400') || 
+          fallbackError.message?.includes('Bad Request')) {
+        throw new Error('Invalid request format. Please check your query and try again.');
+      }
+      
+      throw new Error(`All structured output methods failed. Primary error: ${structuredError.message}. Fallback error: ${fallbackError.message}`);
+    }
   }
 }
 
 /**
- * Retry wrapper for LangChain calls
+ * Validates and normalizes the response from either structured output method
+ * Uses the same validation logic as the direct API calls for consistency
+ */
+function validateAndNormalizeResponse(response: any): AIChartResponse {
+  try {
+    // Use the same validation function as the direct API calls
+    const validatedResponse = validateChartResponse(response as AIChartResponse);
+    
+    // Additional LangChain-specific validation for Zod schema compliance
+    try {
+      ChartResponseSchema.parse(validatedResponse);
+      console.log('Response passed both validateChartResponse and Zod schema validation');
+    } catch (zodError) {
+      console.warn('Response passed validateChartResponse but failed Zod validation:', zodError);
+      // Continue with the response since validateChartResponse already normalized it
+    }
+    
+    return validatedResponse;
+  } catch (validationError: any) {
+    console.error('Response validation failed:', validationError);
+    throw new Error(`Response validation failed: ${validationError?.message || validationError}`);
+  }
+}
+
+/**
+ * Enhanced retry wrapper for LangChain calls that matches direct API approach
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
+  retryCount: number = 0
 ): Promise<T> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      
-      // Calculate delay with exponential backoff and jitter
-      const delay = baseDelay * Math.pow(2, i) + Math.random() * 1000;
-      console.log(`Retry ${i + 1}/${maxRetries} after ${Math.round(delay)}ms`);
+  try {
+    return await fn();
+  } catch (error) {
+    console.error(`LangChain call failed (attempt ${retryCount + 1}):`, error);
+    
+    if (retryCount < MAX_RETRIES) {
+      const delay = getRetryDelayWithJitter(RETRY_DELAYS[retryCount]);
+      console.log(`Retrying LangChain call in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})`);
       
       await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retryCount + 1);
     }
+    
+    console.error(`Max retries (${MAX_RETRIES}) exceeded for LangChain call`);
+    throw error;
   }
-  
-  throw new Error('Max retries exceeded');
 }

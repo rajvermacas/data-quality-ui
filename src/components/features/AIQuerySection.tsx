@@ -65,6 +65,58 @@ export function AIQuerySection({}: AIQuerySectionProps) {
       }
 
       const result: AIChartResponse = await response.json();
+      
+      // Enhanced logging for debugging graph rendering issues
+      console.log('=== AI QUERY RESPONSE DEBUG ===');
+      console.log('Full API Response:', JSON.stringify(result, null, 2));
+      console.log('Chart Type:', result.chartType);
+      console.log('Chart Title:', result.title);
+      console.log('Chart Data Array:', result.data);
+      console.log('Chart Data Length:', result.data?.length || 0);
+      console.log('Chart Config:', result.config);
+      console.log('Chart Filters:', result.filters);
+      console.log('Chart Insights:', result.insights);
+      
+      // Validate chart data structure
+      if (result.data && Array.isArray(result.data)) {
+        console.log('Data structure validation:');
+        console.log('- Is array:', Array.isArray(result.data));
+        console.log('- Array length:', result.data.length);
+        if (result.data.length > 0) {
+          console.log('- First data item:', result.data[0]);
+          console.log('- Data keys:', Object.keys(result.data[0] || {}));
+        }
+      } else {
+        console.warn('❌ Chart data is not a valid array:', result.data);
+      }
+      
+      // Validate config structure
+      if (result.config) {
+        console.log('Config validation:');
+        console.log('- xAxis field:', result.config.xAxis);
+        console.log('- yAxis fields:', result.config.yAxis);
+        console.log('- groupBy field:', result.config.groupBy);
+        
+        // Check if data contains the required fields
+        if (result.data && result.data.length > 0) {
+          const firstItem = result.data[0];
+          const hasXAxis = result.config.xAxis in firstItem;
+          const hasYAxis = result.config.yAxis.every(field => field in firstItem);
+          console.log('- Data contains xAxis field:', hasXAxis);
+          console.log('- Data contains all yAxis fields:', hasYAxis);
+          
+          if (!hasXAxis) {
+            console.warn('❌ xAxis field not found in data:', result.config.xAxis);
+          }
+          if (!hasYAxis) {
+            console.warn('❌ Some yAxis fields not found in data:', result.config.yAxis);
+          }
+        }
+      } else {
+        console.warn('❌ Chart config is missing:', result.config);
+      }
+      console.log('=== END DEBUG ===');
+      
       setState(prev => ({ 
         ...prev, 
         loading: false, 
@@ -95,6 +147,29 @@ export function AIQuerySection({}: AIQuerySectionProps) {
 
   const renderChart = (result: AIChartResponse) => {
     const { chartType, data: chartData, config, title } = result;
+    
+    // Debug logging for chart rendering
+    console.log('=== CHART RENDERING DEBUG ===');
+    console.log('Rendering chart with type:', chartType);
+    console.log('Chart data for rendering:', chartData);
+    console.log('Chart config for rendering:', config);
+    console.log('Chart title:', title);
+    
+    // Validate data before rendering
+    if (!chartData || !Array.isArray(chartData) || chartData.length === 0) {
+      console.warn('❌ Chart data is empty or invalid for rendering');
+      return (
+        <div className="p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
+          <p className="text-yellow-800">No data available to display in chart</p>
+          <p className="text-sm text-yellow-600 mt-1">
+            Data: {JSON.stringify(chartData)}
+          </p>
+        </div>
+      );
+    }
+    
+    console.log('✅ Chart data validation passed, proceeding with rendering');
+    console.log('=== END CHART RENDERING DEBUG ===');
 
     switch (chartType) {
       case 'bar':

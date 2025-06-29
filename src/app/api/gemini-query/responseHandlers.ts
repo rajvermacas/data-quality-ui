@@ -25,10 +25,19 @@ export function createClarificationResponse(clarificationText: string): AIChartR
  * Validates and normalizes a chart response
  */
 export function validateChartResponse(chartResponse: AIChartResponse): AIChartResponse {
+  console.log('=== RESPONSE VALIDATION DEBUG ===');
+  console.log('Input to validateChartResponse:', JSON.stringify(chartResponse, null, 2));
+  
   // Validate required fields
   if (!chartResponse.chartType || !chartResponse.title || !chartResponse.config) {
+    console.error('❌ Missing required fields in response:');
+    console.error('- chartType:', chartResponse.chartType);
+    console.error('- title:', chartResponse.title);
+    console.error('- config:', chartResponse.config);
     throw new Error('Invalid response structure from Gemini API - missing required fields');
   }
+  
+  console.log('✅ Required fields validation passed');
   
   // Validate chart type
   const validChartTypes = ['line', 'bar', 'pie', 'scatter', 'area', 'heatmap'];
@@ -50,15 +59,23 @@ export function validateChartResponse(chartResponse: AIChartResponse): AIChartRe
   
   // Ensure data is an array
   if (!Array.isArray(chartResponse.data)) {
-    console.warn('Data is not an array, defaulting to empty array');
+    console.warn('❌ Data is not an array, defaulting to empty array');
+    console.warn('Original data:', chartResponse.data);
     chartResponse.data = [];
+  } else {
+    console.log('✅ Data is array with length:', chartResponse.data.length);
+    if (chartResponse.data.length > 0) {
+      console.log('First data item keys:', Object.keys(chartResponse.data[0]));
+    }
   }
   
   // Ensure filters is an array and validate structure
   if (!Array.isArray(chartResponse.filters)) {
-    console.warn('Filters is not an array, defaulting to empty array');
+    console.warn('❌ Filters is not an array, defaulting to empty array');
+    console.warn('Original filters:', chartResponse.filters);
     chartResponse.filters = [];
   } else {
+    console.log('✅ Filters is array with length:', chartResponse.filters.length);
     // Validate each filter has the required structure
     chartResponse.filters = chartResponse.filters.map(filter => ({
       field: filter.field || '',
@@ -66,6 +83,10 @@ export function validateChartResponse(chartResponse: AIChartResponse): AIChartRe
       values: Array.isArray(filter.values) ? filter.values : []
     }));
   }
+  
+  console.log('=== FINAL VALIDATED RESPONSE ===');
+  console.log('Final response:', JSON.stringify(chartResponse, null, 2));
+  console.log('=== END VALIDATION DEBUG ===');
   
   return chartResponse;
 }

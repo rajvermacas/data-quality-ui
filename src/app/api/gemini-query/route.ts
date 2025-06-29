@@ -51,6 +51,25 @@ export async function POST(
       ? await callGeminiAPILangChain(prompt, sanitizedQuery, fileUri)
       : await callGeminiAPI(prompt, sanitizedQuery, fileUri);
     
+    // Enhanced logging for debugging graph rendering issues
+    console.log('=== API ROUTE RESPONSE DEBUG ===');
+    console.log('Using LangChain:', useLangChain);
+    console.log('Final Chart Response:', JSON.stringify(chartResponse, null, 2));
+    console.log('Response data type:', typeof chartResponse.data);
+    console.log('Response data is array:', Array.isArray(chartResponse.data));
+    console.log('Response data length:', chartResponse.data?.length || 0);
+    console.log('Response chart type:', chartResponse.chartType);
+    console.log('Response config:', chartResponse.config);
+    
+    // Validate response structure before sending
+    if (!chartResponse.data || !Array.isArray(chartResponse.data)) {
+      console.warn('❌ Invalid data structure in API response:', chartResponse.data);
+    }
+    if (!chartResponse.config || !chartResponse.config.xAxis || !chartResponse.config.yAxis) {
+      console.warn('❌ Invalid config structure in API response:', chartResponse.config);
+    }
+    console.log('=== END API ROUTE DEBUG ===');
+    
     return NextResponse.json(chartResponse);
     
   } catch (error) {

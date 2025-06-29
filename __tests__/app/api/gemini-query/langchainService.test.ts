@@ -2,6 +2,24 @@
  * Tests for LangChain service
  */
 
+// Mock dependencies BEFORE imports
+jest.mock('@langchain/google-genai', () => ({
+  ChatGoogleGenerativeAI: jest.fn()
+}));
+jest.mock('@/app/api/gemini-query/responseHandlers');
+jest.mock('@/app/api/gemini-query/utils');
+jest.mock('@google/generative-ai', () => ({
+  HarmBlockThreshold: {
+    BLOCK_ONLY_HIGH: 'BLOCK_ONLY_HIGH'
+  },
+  HarmCategory: {
+    HARM_CATEGORY_HATE_SPEECH: 'HARM_CATEGORY_HATE_SPEECH',
+    HARM_CATEGORY_DANGEROUS_CONTENT: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+    HARM_CATEGORY_HARASSMENT: 'HARM_CATEGORY_HARASSMENT',
+    HARM_CATEGORY_SEXUALLY_EXPLICIT: 'HARM_CATEGORY_SEXUALLY_EXPLICIT'
+  }
+}));
+
 import { 
   callGeminiWithStructuredOutputLC,
   callGeminiDirectStructuredLC,
@@ -9,9 +27,9 @@ import {
   ChartResponseType
 } from '@/app/api/gemini-query/langchainService';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { validateChartResponse } from '@/app/api/gemini-query/responseHandlers';
 
 // Mock LangChain modules
-jest.mock('@langchain/google-genai');
 jest.mock('@langchain/core/prompts', () => ({
   ChatPromptTemplate: {
     fromMessages: jest.fn(() => ({
@@ -90,7 +108,7 @@ describe('LangChain Service', () => {
       const result = await callGeminiWithStructuredOutputLC('test prompt', 'file://test.csv');
 
       expect(result).toEqual(mockResponse);
-      expect(mockInvoke).toHaveBeenCalledWith({ input: 'test prompt' });
+      expect(mockInvoke).toHaveBeenCalledWith({});
     });
 
     it('should normalize empty filters', async () => {
@@ -126,114 +144,309 @@ describe('LangChain Service', () => {
     });
   });
 
-  describe('callGeminiDirectStructuredLC', () => {
-    it('should return structured response without code execution', async () => {
-      const mockResponse = {
-        chartType: 'pie',
-        title: 'Distribution Chart',
-        data: [{ name: 'A', value: 30 }, { name: 'B', value: 70 }],
-        config: { xAxis: 'name', yAxis: ['value'] },
-        filters: []
-      };
+  describe('callGeminiDirectStructuredLC - Hybrid Approach', () => {
+    const validResponse = {
+      chartType: 'pie',
+      title: 'Distribution Chart',
+      data: [{ name: 'A', value: 30 }, { name: 'B', value: 70 }],
+      config: { xAxis: 'name', yAxis: ['value'] },
+      filters: []
+    };
 
-      const mockInvoke = jest.fn().mockResolvedValue(mockResponse);
-      const mockParser = {
-        parse: jest.fn().mockReturnValue(mockResponse)
-      };
-      const mockChain = { 
-        invoke: mockInvoke,
-        pipe: jest.fn().mockReturnThis()
-      };
-      const mockModel = { 
-        pipe: jest.fn().mockReturnValue({ 
-          invoke: mockInvoke 
-        })
-      };
-
-      (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
-
-      const ChatPromptTemplate = require('@langchain/core/prompts').ChatPromptTemplate;
-      const JsonOutputParser = require('@langchain/core/output_parsers').JsonOutputParser;
+    beforeEach(() => {
+      // Mock validateChartResponse to return the input (valid by default)
+      (validateChartResponse as jest.Mock).mockImplementation((response) => response);
       
-      ChatPromptTemplate.fromMessages.mockReturnValue({ 
-        pipe: jest.fn().mockReturnValue({
-          pipe: jest.fn().mockReturnValue(mockChain)
-        })
-      });
-      JsonOutputParser.mockReturnValue(mockParser);
-
-      const result = await callGeminiDirectStructuredLC('Show distribution', 'file://data.csv');
-
-      expect(result).toEqual(mockResponse);
-      expect(mockInvoke).toHaveBeenCalledWith({ input: 'Show distribution' });
+      // Mock utils
+      const utils = require('@/app/api/gemini-query/utils');
+      utils.MAX_RETRIES = 3;
+      utils.RETRY_DELAYS = [100, 200, 400];
+      utils.getRetryDelayWithJitter = jest.fn((delay) => delay);
     });
 
-    it('should throw error for invalid response structure', async () => {
-      const invalidResponse = {
-        // Missing required fields
-        title: 'Test Chart'
-      };
+    describe('withStructuredOutput success path', () => {
+      it('should use withStructuredOutput successfully when available', async () => {
+        const mockStructuredModel = {
+          invoke: jest.fn().mockResolvedValue(validResponse)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
 
-      const mockInvoke = jest.fn().mockResolvedValue(invalidResponse);
-      const mockParser = {
-        parse: jest.fn().mockReturnValue(invalidResponse)
-      };
-      const mockChain = { 
-        invoke: mockInvoke
-      };
-      const mockModel = { 
-        pipe: jest.fn().mockReturnValue({ 
-          invoke: mockInvoke 
-        })
-      };
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
 
-      (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+        const result = await callGeminiDirectStructuredLC('Show distribution', 'file://data.csv');
 
-      const ChatPromptTemplate = require('@langchain/core/prompts').ChatPromptTemplate;
-      const JsonOutputParser = require('@langchain/core/output_parsers').JsonOutputParser;
-      
-      ChatPromptTemplate.fromMessages.mockReturnValue({ 
-        pipe: jest.fn().mockReturnValue({
-          pipe: jest.fn().mockReturnValue(mockChain)
-        })
+        expect(mockModel.withStructuredOutput).toHaveBeenCalledWith(
+          expect.any(Object), // ChartResponseSchema
+          { name: "chart_response" }
+        );
+        expect(mockStructuredModel.invoke).toHaveBeenCalled();
+        expect(validateChartResponse).toHaveBeenCalledWith(validResponse);
+        expect(result).toEqual(validResponse);
       });
-      JsonOutputParser.mockReturnValue(mockParser);
 
-      await expect(callGeminiDirectStructuredLC('test query'))
-        .rejects.toThrow('Invalid response structure from LangChain');
+      it('should handle withStructuredOutput with retry logic', async () => {
+        const mockStructuredModel = {
+          invoke: jest.fn()
+            .mockRejectedValueOnce(new Error('Network error'))
+            .mockResolvedValueOnce(validResponse)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+        const result = await callGeminiDirectStructuredLC('Show distribution');
+
+        expect(mockStructuredModel.invoke).toHaveBeenCalledTimes(2);
+        expect(result).toEqual(validResponse);
+      });
+    });
+
+    describe('fallback to JsonOutputParser', () => {
+      it('should fallback to JsonOutputParser when withStructuredOutput fails with known LangChain issue', async () => {
+        const langchainError = new Error('No parseable tool calls provided to GoogleGenerativeAIToolsOutputParser');
+        
+        const mockStructuredModel = {
+          invoke: jest.fn().mockRejectedValue(langchainError)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        // Mock JsonOutputParser fallback
+        const mockChain = {
+          invoke: jest.fn().mockResolvedValue(validResponse)
+        };
+        
+        const RunnableSequence = require('@langchain/core/runnables').RunnableSequence;
+        RunnableSequence.from = jest.fn().mockReturnValue(mockChain);
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+        const result = await callGeminiDirectStructuredLC('test query');
+
+        expect(mockModel.withStructuredOutput).toHaveBeenCalled();
+        expect(RunnableSequence.from).toHaveBeenCalled();
+        expect(mockChain.invoke).toHaveBeenCalled();
+        expect(result).toEqual(validResponse);
+      });
+
+      it('should detect specific LangChain.js Google Gemini errors', async () => {
+        const testCases = [
+          'No parseable tool calls provided to GoogleGenerativeAIToolsOutputParser',
+          'withStructuredOutput is not a function',
+          'GoogleGenerativeAIToolsOutputParser failed'
+        ];
+
+        for (const errorMessage of testCases) {
+          const langchainError = new Error(errorMessage);
+          
+          const mockStructuredModel = {
+            invoke: jest.fn().mockRejectedValue(langchainError)
+          };
+          
+          const mockModel = {
+            withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+          };
+
+          const mockChain = {
+            invoke: jest.fn().mockResolvedValue(validResponse)
+          };
+          
+          const RunnableSequence = require('@langchain/core/runnables').RunnableSequence;
+          RunnableSequence.from = jest.fn().mockReturnValue(mockChain);
+
+          (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+          const result = await callGeminiDirectStructuredLC('test query');
+          expect(result).toEqual(validResponse);
+        }
+      });
+
+      it('should handle fallback with retry logic', async () => {
+        const langchainError = new Error('No parseable tool calls provided to GoogleGenerativeAIToolsOutputParser');
+        
+        const mockStructuredModel = {
+          invoke: jest.fn().mockRejectedValue(langchainError)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        const mockChain = {
+          invoke: jest.fn()
+            .mockRejectedValueOnce(new Error('Network error'))
+            .mockResolvedValueOnce(validResponse)
+        };
+        
+        const RunnableSequence = require('@langchain/core/runnables').RunnableSequence;
+        RunnableSequence.from = jest.fn().mockReturnValue(mockChain);
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+        const result = await callGeminiDirectStructuredLC('test query');
+
+        expect(mockChain.invoke).toHaveBeenCalledTimes(2);
+        expect(result).toEqual(validResponse);
+      });
+    });
+
+    describe('error handling', () => {
+      it('should immediately throw API key configuration errors', async () => {
+        const configError = new Error('API key not configured');
+        
+        const mockStructuredModel = {
+          invoke: jest.fn().mockRejectedValue(configError)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+        await expect(callGeminiDirectStructuredLC('test query'))
+          .rejects.toThrow('API key not configured');
+      });
+
+      it('should provide specific error messages for different failure types', async () => {
+        const langchainError = new Error('No parseable tool calls');
+        const fallbackError = new Error('rate limit exceeded');
+        
+        const mockStructuredModel = {
+          invoke: jest.fn().mockRejectedValue(langchainError)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        const mockChain = {
+          invoke: jest.fn().mockRejectedValue(fallbackError)
+        };
+        
+        const RunnableSequence = require('@langchain/core/runnables').RunnableSequence;
+        RunnableSequence.from = jest.fn().mockReturnValue(mockChain);
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+
+        await expect(callGeminiDirectStructuredLC('test query'))
+          .rejects.toThrow('API rate limit exceeded. Please try again later.');
+      });
+
+      it('should handle validation errors from both structured output and fallback', async () => {
+        const invalidResponse = { title: 'incomplete' };
+        
+        const mockStructuredModel = {
+          invoke: jest.fn().mockResolvedValue(invalidResponse)
+        };
+        
+        const mockModel = {
+          withStructuredOutput: jest.fn().mockReturnValue(mockStructuredModel)
+        };
+
+        // Mock fallback chain to also fail validation
+        const mockChain = {
+          invoke: jest.fn().mockResolvedValue(invalidResponse)
+        };
+        
+        const RunnableSequence = require('@langchain/core/runnables').RunnableSequence;
+        RunnableSequence.from = jest.fn().mockReturnValue(mockChain);
+
+        (ChatGoogleGenerativeAI as jest.Mock).mockReturnValue(mockModel);
+        (validateChartResponse as jest.Mock).mockImplementation(() => {
+          throw new Error('Invalid response structure');
+        });
+
+        await expect(callGeminiDirectStructuredLC('test query'))
+          .rejects.toThrow('Invalid response structure');
+      });
     });
   });
 
-  describe('withRetry', () => {
-    it('should retry on failure and succeed', async () => {
+  describe('withRetry - Enhanced Retry Logic', () => {
+    beforeEach(() => {
+      // Mock utils with actual retry constants
+      const utils = require('@/app/api/gemini-query/utils');
+      utils.MAX_RETRIES = 3;
+      utils.RETRY_DELAYS = [100, 200, 400];
+      utils.getRetryDelayWithJitter = jest.fn((delay) => delay / 10); // Speed up tests
+    });
+
+    it('should succeed on first attempt', async () => {
+      const mockFn = jest.fn().mockResolvedValueOnce('Success!');
+
+      const result = await withRetry(mockFn);
+
+      expect(result).toBe('Success!');
+      expect(mockFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retry with exponential backoff and succeed', async () => {
       const mockFn = jest.fn()
         .mockRejectedValueOnce(new Error('First attempt failed'))
         .mockRejectedValueOnce(new Error('Second attempt failed'))
-        .mockResolvedValueOnce('Success!');
+        .mockResolvedValueOnce('Success on third try!');
 
-      const result = await withRetry(mockFn, 3, 10);
+      const result = await withRetry(mockFn);
 
-      expect(result).toBe('Success!');
+      expect(result).toBe('Success on third try!');
       expect(mockFn).toHaveBeenCalledTimes(3);
-    });
-
-    it('should throw error after max retries', async () => {
-      const mockFn = jest.fn()
-        .mockRejectedValue(new Error('Always fails'));
-
-      await expect(withRetry(mockFn, 3, 10))
-        .rejects.toThrow('Always fails');
       
-      expect(mockFn).toHaveBeenCalledTimes(3);
+      // Verify jitter function was called with proper delays
+      const utils = require('@/app/api/gemini-query/utils');
+      expect(utils.getRetryDelayWithJitter).toHaveBeenCalledWith(100); // First retry
+      expect(utils.getRetryDelayWithJitter).toHaveBeenCalledWith(200); // Second retry
     });
 
-    it('should return immediately on success', async () => {
-      const mockFn = jest.fn().mockResolvedValueOnce('Immediate success');
+    it('should throw error after MAX_RETRIES attempts', async () => {
+      const utils = require('@/app/api/gemini-query/utils');
+      utils.MAX_RETRIES = 2; // This means 2 retries after initial attempt = 3 total calls
+      
+      const mockFn = jest.fn().mockRejectedValue(new Error('Always fails'));
 
-      const result = await withRetry(mockFn, 3, 10);
+      await expect(withRetry(mockFn)).rejects.toThrow('Always fails');
+      
+      expect(mockFn).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+    });
 
-      expect(result).toBe('Immediate success');
-      expect(mockFn).toHaveBeenCalledTimes(1);
+    it('should use proper retry delays from RETRY_DELAYS array', async () => {
+      const utils = require('@/app/api/gemini-query/utils');
+      utils.MAX_RETRIES = 3;
+      utils.RETRY_DELAYS = [500, 1000, 2000];
+      utils.getRetryDelayWithJitter = jest.fn((delay) => delay);
+      
+      const mockFn = jest.fn()
+        .mockRejectedValueOnce(new Error('Fail 1'))
+        .mockRejectedValueOnce(new Error('Fail 2'))
+        .mockRejectedValueOnce(new Error('Fail 3'))
+        .mockResolvedValueOnce('Success');
+
+      const result = await withRetry(mockFn);
+
+      expect(result).toBe('Success');
+      expect(utils.getRetryDelayWithJitter).toHaveBeenCalledWith(500);
+      expect(utils.getRetryDelayWithJitter).toHaveBeenCalledWith(1000);
+      expect(utils.getRetryDelayWithJitter).toHaveBeenCalledWith(2000);
+    });
+
+    it('should handle retryCount parameter correctly', async () => {
+      const mockFn = jest.fn()
+        .mockRejectedValueOnce(new Error('Fail'))
+        .mockResolvedValueOnce('Success');
+
+      // Start with retryCount = 1 (second attempt)
+      const result = await withRetry(mockFn, 1);
+
+      expect(result).toBe('Success');
+      expect(mockFn).toHaveBeenCalledTimes(2); // Original call + 1 retry
     });
   });
 

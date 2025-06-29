@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(pkill:*)",
+      "Bash(curl:*)",
       "mcp__context7__resolve-library-id",
       "mcp__firecrawl__firecrawl_search",
       "mcp__firecrawl__*",
