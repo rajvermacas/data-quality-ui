@@ -54,7 +54,7 @@ export function calculateDashboardMetrics(data: DataQualityRecord[]): DashboardM
       averageFailRate: 0,
       trendingDown: 0,
       trendingUp: 0,
-      stable: 0
+      trendingFlat: 0
     };
   }
 
@@ -64,7 +64,7 @@ export function calculateDashboardMetrics(data: DataQualityRecord[]): DashboardM
   }).length;
   const trendingDown = data.filter(item => item.trend_flag === 'down').length;
   const trendingUp = data.filter(item => item.trend_flag === 'up').length;
-  const stable = data.filter(item => item.trend_flag === 'equal').length;
+  const trendingFlat = data.filter(item => item.trend_flag === 'equal').length;
   
   const totalFailRate = data.reduce((sum, item) => sum + item.fail_rate_1m, 0);
   const averageFailRate = totalFailRate / data.length;
@@ -75,7 +75,7 @@ export function calculateDashboardMetrics(data: DataQualityRecord[]): DashboardM
     averageFailRate,
     trendingDown,
     trendingUp,
-    stable
+    trendingFlat
   };
 }
 

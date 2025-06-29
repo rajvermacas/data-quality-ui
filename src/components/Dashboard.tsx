@@ -29,7 +29,7 @@ export function Dashboard() {
       averageFailRate: 0,
       trendingDown: 0,
       trendingUp: 0,
-      stable: 0
+      trendingFlat: 0
     },
     urgentItems: [],
     loading: true,

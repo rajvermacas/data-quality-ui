@@ -38,8 +38,8 @@ export function MetricsCards({ metrics, onTrendClick }: MetricsCardsProps) {
       trend: 'up' as const
     },
     {
-      title: 'Stable',
-      value: metrics.stable.toLocaleString(),
+      title: 'Trending Flat',
+      value: metrics.trendingFlat.toLocaleString(),
       icon: '➡️',
       color: 'yellow',
       clickable: true,

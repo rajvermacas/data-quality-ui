@@ -60,7 +60,7 @@ export interface DashboardMetrics {
   averageFailRate: number;
   trendingDown: number;
   trendingUp: number;
-  stable: number;
+  trendingFlat: number;
 }
 
 export interface AIQueryRequest {
