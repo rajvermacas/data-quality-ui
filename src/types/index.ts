@@ -51,7 +51,7 @@ export interface UrgentAttentionItem {
   fail_rate_1m: number;
   fail_rate_3m: number;
   fail_rate_12m: number;
-  trend_flag: 'down';
+  trend_flag: 'up' | 'down' | 'equal';
 }
 
 export interface DashboardMetrics {

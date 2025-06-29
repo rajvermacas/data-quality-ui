@@ -21,7 +21,7 @@ export function UrgentAttentionWidget({ items }: UrgentAttentionWidgetProps) {
           </span>
         </div>
         <p className="text-gray-600 text-center py-8">
-          No datasets with declining trends detected. All systems appear to be operating within acceptable parameters.
+          No datasets with high failure rates detected. All systems appear to be operating within acceptable parameters.
         </p>
       </div>
     );
@@ -60,7 +60,7 @@ export function UrgentAttentionWidget({ items }: UrgentAttentionWidgetProps) {
             <div className="mt-3 flex space-x-4 text-xs text-gray-600">
               <span>3M: {(item.fail_rate_3m * 100).toFixed(1)}%</span>
               <span>12M: {(item.fail_rate_12m * 100).toFixed(1)}%</span>
-              <span className="text-red-600 font-medium">↓ Declining</span>
+              <span className="text-red-600 font-medium">⚠ High Failure Rate</span>
             </div>
           </div>
         ))}

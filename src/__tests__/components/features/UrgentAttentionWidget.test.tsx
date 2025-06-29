@@ -44,7 +44,7 @@ describe('UrgentAttentionWidget', () => {
     
     expect(screen.getByText('Urgent Attention Required')).toBeInTheDocument();
     expect(screen.getByText('All Clear')).toBeInTheDocument();
-    expect(screen.getByText(/No datasets with declining trends detected/)).toBeInTheDocument();
+    expect(screen.getByText(/No datasets with high failure rates detected/)).toBeInTheDocument();
   });
 
   it('should show singular "Issue" for one item', () => {

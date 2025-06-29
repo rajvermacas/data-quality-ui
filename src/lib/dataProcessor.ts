@@ -58,7 +58,10 @@ export function calculateDashboardMetrics(data: DataQualityRecord[]): DashboardM
     };
   }
 
-  const urgentAttentionCount = data.filter(item => item.trend_flag === 'down').length;
+  const urgentAttentionCount = data.filter(item => {
+    // Check if 1-month failure rate is 20% or higher
+    return item.fail_rate_1m >= 0.2;
+  }).length;
   const trendingDown = data.filter(item => item.trend_flag === 'down').length;
   const trendingUp = data.filter(item => item.trend_flag === 'up').length;
   const stable = data.filter(item => item.trend_flag === 'equal').length;
@@ -78,7 +81,10 @@ export function calculateDashboardMetrics(data: DataQualityRecord[]): DashboardM
 
 export function getUrgentAttentionItems(data: DataQualityRecord[]): UrgentAttentionItem[] {
   return data
-    .filter(item => item.trend_flag === 'down')
+    .filter(item => {
+      // Check if 1-month failure rate is 20% or higher
+      return item.fail_rate_1m >= 0.2;
+    })
     .map(item => ({
       dataset_name: item.dataset_name,
       source: item.source,
@@ -86,7 +92,7 @@ export function getUrgentAttentionItems(data: DataQualityRecord[]): UrgentAttent
       fail_rate_1m: item.fail_rate_1m,
       fail_rate_3m: item.fail_rate_3m,
       fail_rate_12m: item.fail_rate_12m,
-      trend_flag: 'down' as const
+      trend_flag: item.trend_flag
     }))
     .sort((a, b) => b.fail_rate_1m - a.fail_rate_1m);
 }

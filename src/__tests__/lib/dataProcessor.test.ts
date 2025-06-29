@@ -25,8 +25,8 @@ const mockData: DataQualityRecord[] = [
     pass_count_12m: 80,
     fail_count_12m: 20,
     fail_rate_total: 0.2,
-    fail_rate_1m: 0.2,
-    fail_rate_3m: 0.176,
+    fail_rate_1m: 0.25,
+    fail_rate_3m: 0.2,
     fail_rate_12m: 0.2,
     trend_flag: 'down',
     last_execution_level: 'DATASET'
@@ -55,7 +55,7 @@ const mockData: DataQualityRecord[] = [
     fail_count_12m: 10,
     fail_rate_total: 0.1,
     fail_rate_1m: 0.1,
-    fail_rate_3m: 0.086,
+    fail_rate_3m: 0.1,
     fail_rate_12m: 0.1,
     trend_flag: 'up',
     last_execution_level: 'RECORD'
@@ -92,7 +92,7 @@ TEST_SYSTEM,tenant_001,ds001,Test Dataset,1,TEST_RULE,BUSINESS_RULE,Validity,Tes
       const metrics = calculateDashboardMetrics(mockData);
       
       expect(metrics.totalDatasets).toBe(2);
-      expect(metrics.urgentAttentionCount).toBe(1); // Only one with trend_flag 'down'
+      expect(metrics.urgentAttentionCount).toBe(1); // Only one with >= 20% failure rate
       expect(metrics.trendingDown).toBe(1);
       expect(metrics.trendingUp).toBe(1);
       expect(metrics.stable).toBe(0);
@@ -108,29 +108,61 @@ TEST_SYSTEM,tenant_001,ds001,Test Dataset,1,TEST_RULE,BUSINESS_RULE,Validity,Tes
   });
 
   describe('getUrgentAttentionItems', () => {
-    it('should return only items with trend_flag down', () => {
+    it('should return items with 20% or higher 1-month failure rate', () => {
       const urgentItems = getUrgentAttentionItems(mockData);
       
       expect(urgentItems).toHaveLength(1);
-      expect(urgentItems[0].trend_flag).toBe('down');
       expect(urgentItems[0].dataset_name).toBe('Test Dataset 1');
+      // 0.25 = 25% failure rate (>= 20% threshold)
+      expect(urgentItems[0].fail_rate_1m).toBe(0.25);
+    });
+
+    it('should not return items with failure rate below 20%', () => {
+      const dataWithLowRate = [{
+        ...mockData[0],
+        dataset_name: 'Low Rate Dataset',
+        fail_rate_1m: 0.15 // 15% failure rate (< 20% threshold)
+      }];
+      
+      const urgentItems = getUrgentAttentionItems(dataWithLowRate);
+      
+      expect(urgentItems).toHaveLength(0);
+    });
+
+    it('should return items with exactly 20% failure rate', () => {
+      const dataWithExactThreshold = [{
+        ...mockData[0],
+        dataset_name: 'Threshold Dataset',
+        fail_rate_1m: 0.2 // Exactly 20% failure rate
+      }];
+      
+      const urgentItems = getUrgentAttentionItems(dataWithExactThreshold);
+      
+      expect(urgentItems).toHaveLength(1);
+      expect(urgentItems[0].dataset_name).toBe('Threshold Dataset');
+      expect(urgentItems[0].fail_rate_1m).toBe(0.2);
     });
 
     it('should sort by fail_rate_1m in descending order', () => {
-      const dataWithMultipleDown = [
-        ...mockData,
+      const dataWithMultipleUrgent = [
         {
           ...mockData[0],
           dataset_name: 'High Priority Dataset',
-          fail_rate_1m: 0.5,
-          trend_flag: 'down' as const
+          fail_rate_1m: 0.6 // 60% failure rate
+        },
+        {
+          ...mockData[0],
+          dataset_name: 'Medium Priority Dataset',
+          fail_rate_1m: 0.3 // 30% failure rate
         }
       ];
       
-      const urgentItems = getUrgentAttentionItems(dataWithMultipleDown);
+      const urgentItems = getUrgentAttentionItems(dataWithMultipleUrgent);
       
-      expect(urgentItems[0].fail_rate_1m).toBe(0.5);
+      expect(urgentItems[0].fail_rate_1m).toBe(0.6);
       expect(urgentItems[0].dataset_name).toBe('High Priority Dataset');
+      expect(urgentItems[1].fail_rate_1m).toBe(0.3);
+      expect(urgentItems[1].dataset_name).toBe('Medium Priority Dataset');
     });
 
     it('should handle empty data array', () => {
