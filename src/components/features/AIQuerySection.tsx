@@ -279,13 +279,28 @@ export function AIQuerySection({}: AIQuerySectionProps) {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Query Assistant</h2>
-        <p className="text-gray-600">
-          Ask questions about your data quality metrics in natural language
-        </p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Query Assistant</h2>
+            <p className="text-gray-600">
+              Ask questions about your data quality metrics in natural language
+            </p>
+          </div>
+          
+          {/* Create Issue Button - Separated as standalone action */}
+          <button
+            onClick={() => setIsIssueModalOpen(true)}
+            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 flex items-center gap-2 shadow-sm shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Create Issue
+          </button>
+        </div>
       </div>
 
-      {/* Query Input */}
+      {/* Query Input - Only Ask AI functionality */}
       <div className="mb-6">
         <div className="flex gap-2">
           <input
@@ -303,15 +318,6 @@ export function AIQuerySection({}: AIQuerySectionProps) {
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {state.loading ? 'Processing...' : 'Ask AI'}
-          </button>
-          <button
-            onClick={() => setIsIssueModalOpen(true)}
-            className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 flex items-center gap-2 shadow-sm"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path>
-            </svg>
-            Create Issue
           </button>
         </div>
         
